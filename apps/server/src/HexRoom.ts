@@ -17,7 +17,7 @@ function parseMove(value: unknown): Move {
 }
 export class HexRoom extends Room {
   maxClients = 4;
-  protected botDelay = 420;
+  protected botDelay = 1000;
   protected selectionTimeout = 30000;
   protected collateralTimeout = 15000;
   private decisionTimer: { clear(): void } | null = null;
@@ -125,7 +125,7 @@ export class HexRoom extends Room {
       const move = this.round.botMove(seat.index);
       if (move && (seat.bot || this.round.isAutomatic(seat.index))) this.round.act(seat.index, move, this.round.legal(seat.index).decisionId);
       this.publish(); this.scheduleBot();
-    }, this.botDelay);
+    }, this.botDelay * (0.7 + Math.random() * 0.6));
   }
   async onLeave(client: Client, consented: boolean) {
     const seat = this.snapshot.seats.find(s => s.playerId === client.sessionId);

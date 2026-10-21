@@ -81,7 +81,7 @@ export class BotGame {
       const move = this.round.botMove(seat);
       if (move) this.round.act(seat, move, this.round.legal(seat).decisionId);
       this.publish(); this.scheduleBot();
-    }, 420);
+    }, 700 + Math.random() * 600);
   }
   dispose(): void { this.disposed = true; this.stopBot?.(); this.stopDecision?.(); this.stopBot = null; this.stopDecision = null; }
 }

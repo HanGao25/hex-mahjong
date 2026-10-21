@@ -3,7 +3,7 @@ import * as engine from '@hex/mahjong-engine';
 import { BotGame } from '../src/bot-game.js';
 import type { Move, TableSnapshot } from '@hex/shared';
 let serial=0;
-beforeEach(()=>vi.useFakeTimers({now:100000}));
+beforeEach(()=>{vi.useFakeTimers({now:100000});vi.spyOn(Math,'random').mockReturnValue(0.5);});
 afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks();});
 function session(seed=42){
  let state=seed;
@@ -21,9 +21,9 @@ it('runs solo without network state, preserves snapshot privacy and rejects repe
  for(const player of current().round!.players)expect(player).not.toHaveProperty('hand');
  const command={type:'play' as const,decisionId:current().you.legal.decisionId,move:{type:'declare' as const,suit:'dots' as const}};
  game.receive(command);game.receive(command);expect(errors).toEqual(['ACTION_NOT_ALLOWED']);
- vi.advanceTimersByTime(2100);
+ vi.advanceTimersByTime(4000);
  expect(current().you.legal.cardOffers).toHaveLength(2);act({type:'choose_card',cardId:current().you.legal.cardOffers[0]!});
- vi.advanceTimersByTime(2100);
+ vi.advanceTimersByTime(4000);
  const discard={type:'play' as const,decisionId:current().you.legal.decisionId,move:{type:'discard' as const,tileId:current().you.legal.discardIds[0]!}};
  game.receive(discard);const count=current().you.hand.length;game.receive(discard);
  expect(errors.at(-1)).toBe('STALE_ACTION');expect(current().you.hand.length).toBe(count);
@@ -31,7 +31,7 @@ it('runs solo without network state, preserves snapshot privacy and rejects repe
 });
 it('uses a real selection deadline, then waits for the human without auto-discarding',()=>{
  const {game,current,act}=session();game.receive({type:'start_game'});act({type:'declare',suit:'dots'});
- vi.advanceTimersByTime(2100);const deadline=current().round!.selection!.deadline!;
+ vi.advanceTimersByTime(4000);const deadline=current().round!.selection!.deadline!;
  expect(deadline).toBeGreaterThan(Date.now());expect(current().you.legal.cardOffers).toHaveLength(2);
  vi.advanceTimersByTime(60000);
  expect(current().round!.phase).toBe('discard');expect(current().you.hand).toHaveLength(14);expect(current().round!.players[0]!.discards).toHaveLength(0);
@@ -39,7 +39,7 @@ it('uses a real selection deadline, then waits for the human without auto-discar
  game.dispose();expect(vi.getTimerCount()).toBe(0);
 });
 it('cancels all worker-side timers on leave, with no late snapshots',()=>{
- const {game,current,act,snapshots}=session();game.receive({type:'start_game'});act({type:'declare',suit:'dots'});vi.advanceTimersByTime(2100);
+ const {game,current,act,snapshots}=session();game.receive({type:'start_game'});act({type:'declare',suit:'dots'});vi.advanceTimersByTime(4000);
  expect(current().round!.phase).toBe('card_selection');const count=snapshots.length;
  game.dispose();vi.advanceTimersByTime(120000);expect(snapshots.length).toBe(count);expect(vi.getTimerCount()).toBe(0);
 });
@@ -55,7 +55,7 @@ it('completes full offline Hex rounds and carries only scores/dealer into the ne
    else if(legal.claims.length)act({type:'claim',claim:legal.claims.includes('win')?'win':legal.claims.includes('kong')?'kong':legal.claims.includes('pong')?'pong':'pass'});
    else if(legal.kongIds.length)act({type:'kong',tileId:legal.kongIds[0]!});
    else if(legal.discardIds.length)act({type:'discard',tileId:legal.discardIds[0]!});
-   vi.advanceTimersByTime(420);
+   vi.advanceTimersByTime(1000);
   }
   expect(current().round!.phase).toBe('settled');expect(errors).toEqual([]);
   const balances=current().round!.players.map(p=>p.score),dealer=current().round!.nextDealer;
@@ -73,7 +73,7 @@ it('automates a human Blood River seat after the first win and returns to manual
  round.players[0]!.cards.push('blood-river');
  vi.spyOn(engine,'createRound').mockReturnValueOnce(round);
  const {game,current,act,errors,snapshots}=session();game.receive({type:'start_game'});act({type:'declare',suit:'dots'});
- vi.advanceTimersByTime(2100);
+ vi.advanceTimersByTime(4000);
  expect(current().you.legal.canWin).toBe(true);expect(round.isAutomatic(0)).toBe(false);
  vi.advanceTimersByTime(1000);expect(round.players[0]!.winCount).toBe(0);
  act({type:'win'});expect(round.isAutomatic(0)).toBe(true);

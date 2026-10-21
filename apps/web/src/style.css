@@ -19,3 +19,23 @@
 .player{position:relative}.player-score-flash{border-radius:inherit;font-size:clamp(28px,4vw,44px)}
 
 .revealed-hand{display:flex;flex-wrap:wrap;gap:3px;margin:10px 0}.player:not(.south){display:flex;flex-direction:column}.player:not(.south) .discards{order:1}
+
+/* Keep decisions at the heart of the table, with room to read every card. */
+.mahjong-table.awaiting-decision{grid-template-areas:'. north .' 'west . east' 'center center center' 'south south south'}
+.awaiting-decision .table-center{width:100%;max-width:760px;justify-self:center;padding:22px;border:1px solid #d5be8c;border-radius:16px;background:#15382f;box-shadow:0 0 24px #d5be8c22}
+.awaiting-decision .table-mark{display:none}
+.awaiting-decision .turn-label{color:#f0d9a5;font-size:16px;font-weight:600;margin-top:0}
+.table-decisions{width:100%;min-width:0}
+.table-decisions:empty{display:none}
+.table-decisions .hex-selection,.table-decisions .collateral-choice{border:0;margin-top:0;padding-top:12px}
+.table-decisions .hex-card{min-width:0}
+.table-decisions .action-bar{justify-content:center}
+.table-decisions .action-bar:empty{display:none}
+.table-decisions .action-bar button{min-height:48px;min-width:88px;font-weight:700}
+.table-decisions .declare p{max-width:520px;margin:12px auto;line-height:1.6}
+@media(max-width:700px){
+ .mahjong-table.awaiting-decision{grid-template-areas:'north north north' 'west . east' 'center center center' 'south south south'}
+ .awaiting-decision .table-center{padding:16px 10px}
+ .table-decisions .hex-offers{gap:10px}
+ .table-decisions .declare button{margin:6px 3px}
+}

@@ -1,0 +1,38 @@
+{
+  "name": "hex-mahjong",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:integration": "vitest run apps/server/test/integration.test.ts",
+    "start": "pnpm --filter @hex/server start",
+    "play": "node scripts/local-play.mjs",
+    "test:unit": "vitest run packages",
+    "build:static": "pnpm --filter @hex/web^... build && pnpm --filter @hex/web build:static"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "tsx": "4.20.6",
+    "@types/node": "22.18.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "nanoid@3": "3.3.18",
+      "qs": "6.16.0",
+      "path-to-regexp@0.1": "0.1.13",
+      "body-parser@1": "1.20.6",
+      "tinypool": "2.1.2",
+      "esbuild": "0.28.1"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

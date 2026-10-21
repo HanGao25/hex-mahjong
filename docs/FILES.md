@@ -1,0 +1,61 @@
+# Project files
+
+Paths are relative to hex-mahjong/. The parent `games.html` links to the publishable `../hex-mahjong-play/` static build. That generated directory is intentionally kept with the parent website for manual publishing. Generated builds, dependencies and the ignored machine-local runtime are omitted.
+
+- `.gitignore`
+- `.node-version`
+- `.npmrc`
+- `Play Hex Mahjong.command`
+- `README.md`
+- `apps/server/package.json`
+- `apps/server/src/HexRoom.ts`
+- `apps/server/src/index.ts`
+- `apps/server/test/integration.test.ts`
+- `apps/server/tsconfig.json`
+- `apps/web/index.html`
+- `apps/web/package.json`
+- `apps/web/public/config.json`
+- `apps/web/public/favicon.svg`
+- `apps/web/src/assets/bird.png`
+- `apps/web/src/bot-game.ts`
+- `apps/web/src/bot-worker.ts`
+- `apps/web/src/env.d.ts`
+- `apps/web/src/local-connection.ts`
+- `apps/web/src/main.tsx`
+- `apps/web/src/style.css`
+- `apps/web/src/tile-artwork.ts`
+- `apps/web/test/bot-game.test.ts`
+- `apps/web/tsconfig.json`
+- `apps/web/vite.config.ts`
+- `docs/ARCHITECTURE.md`
+- `docs/DEPLOYMENT.md`
+- `docs/FILES.md`
+- `docs/GAME_RULES.md`
+- `docs/HEXTECH_CARDS.md`
+- `docs/LOCAL_PLAYTEST.md`
+- `docs/OPEN_QUESTIONS.md`
+- `docs/RULE_DEFAULTS.md`
+- `docs/RULE_DISCUSSION_HISTORY.md`
+- `docs/TESTING.md`
+- `package.json`
+- `packages/hextech-engine/package.json`
+- `packages/hextech-engine/src/index.ts`
+- `packages/hextech-engine/test/foundation.test.ts`
+- `packages/hextech-engine/tsconfig.json`
+- `packages/mahjong-engine/package.json`
+- `packages/mahjong-engine/src/hand.ts`
+- `packages/mahjong-engine/src/index.ts`
+- `packages/mahjong-engine/src/random.ts`
+- `packages/mahjong-engine/src/round.ts`
+- `packages/mahjong-engine/test/game.test.ts`
+- `packages/mahjong-engine/test/hex.test.ts`
+- `packages/mahjong-engine/tsconfig.json`
+- `packages/shared/package.json`
+- `packages/shared/src/index.ts`
+- `packages/shared/tsconfig.json`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+- `scripts/dev.mjs`
+- `scripts/local-play.mjs`
+- `tsconfig.base.json`
+- `vitest.config.ts`

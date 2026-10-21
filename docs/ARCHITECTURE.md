@@ -1,0 +1,41 @@
+# Architecture and protocol
+
+Dependencies: web → mahjong-engine/shared; server → mahjong-engine/shared; mahjong-engine → hextech-engine/shared; hextech-engine → shared. The pure Hex package has no dependency back on the Mahjong package. Pure modules import no framework, DOM, browser storage or node:crypto. Workspace exports are compiled ESM. Vitest aliases pure source for unit tests.
+
+## Solo browser mode
+
+`BotGame` in `apps/web/src/bot-game.ts` orchestrates a single human plus three bots using the same pure engine as the server. `bot-worker.ts` owns its state, crypto-backed randomness and physical IDs, 420 ms bot steps, and 30/15 second selection/collateral fallbacks. `local-connection.ts` carries typed actions and safe public/private snapshots between the worker and React. Leaving terminates the worker and its timers; refresh has no solo recovery. All practice buttons use this worker. The static Vite mode defines `__BOT_ONLY__`, disables friend creation, hides join/reconnect/share, uses relative asset paths, and outputs `../hex-mahjong-play/` for ordinary static website hosting. It makes no backend connection. Solo practice is locally controlled and has no competitive trust boundary.
+
+Server-hosted friend rooms retain the authority and privacy boundary described below; they never accept client game state. The normal build loads the Colyseus client and runtime endpoint only for create/join/reconnect.
+
+The React view discards on a single legal tile click, suppresses repeated sends for a decision token, and derives one-second score flashes from new ledger IDs: your changes in the center and opponents’ changes in their seat zones, with independent timers per seat. It tracks the room/round/seat to avoid replaying old payments.
+
+## State ownership
+
+The server creates the 108 physical tiles with UUID IDs and crypto-backed injectable randomness. `MahjongRound` owns private hands, the ordered wall, drawn-tile identity, concealed melds, claim options/replies, win/settlement calculations, the ledger and dealer state. The round also owns private card offers/locked choices, selected cards, once-per-phase selection flags, Cheat arming, Blood River hand locks and primary/bonus turn identity. The engine consumes only validated seat actions. It does not synchronize itself to browsers.
+
+The Colyseus room assigns authenticated connection sessions to seats; client-supplied seat IDs are never accepted. Empty seats become server-controlled bots on start. Bots use the same engine `act`/`legal` path as humans. Their move selector receives only its own hand/melds/missing suit plus legally available actions; shanten-based discard selection has no access to opponents' hands or future draws. Bot steps are delayed approximately 420 ms for readability. Humans have unlimited turn/claim decision time.
+
+Shared `PublicRoom` retains room settings, host and four membership markers. A private `table` envelope is sent separately to each client: `{room, round: RoundView | null, you: PrivateTable}`. RoundView is an explicit public projection: counts, declared missing suits, visible melds/discards, pending offered tile, scores, event summaries and payment ledger. Concealed-kong faces are hidden during play and revealed at round settlement. Only `you` contains the recipient's concealed physical IDs/types, their own concealed-kong faces, drawn ID and legal actions including private `cardOffers`. Public state contains revealed selected cards, win counts and lock/bonus indicators but no uncommitted choices. Wall/copy logs contain counts, never hidden types or positions. No full wall, opponent concealed hand, RNG seed, claim options or connection capability is broadcast. Wins expose scoring patterns; concealed hands remain private until round settlement. At settlement each player’s `revealedHand` contains their remaining tile types, and concealed-kong faces become public. This projection contains no physical tile IDs. Before settlement, including while an ordinary winner sits out, `revealedHand` is null; new rounds reset it to null.
+
+## Requests
+
+| Request on `action` | Behavior |
+| --- | --- |
+| `{type:'start_game'}` | Host only, waiting room only; fills empty seats with bots and deals first round |
+| `{type:'next_round'}` | Host only, settled round only, below configured round limit; preserves balances, uses next dealer |
+| `{type:'play',decisionId,move}` | Validate exact object shape, current membership, private decision token and legal engine move |
+
+Moves: `{type:'declare',suit}`, `{type:'discard',tileId}`, `{type:'win'}`, `{type:'kong',tileId}`, `{type:'claim',claim:'win'|'kong'|'pong'|'pass'}`, `{type:'choose_card',cardId}`, `{type:'collateral',use:boolean}`. All remain nested inside the `play` envelope with its decision ID. Extra properties are rejected. Round actions carry a server-issued decision ID scoped to round/window/seat. Duplicate or stale decisions cannot discard twice, pay twice or claim after resolution. Declaring missing suits and concurrent claim responses keep other participants' tokens valid within the same decision window; after responding, that seat has no further legal response until the next window. Selection choices are private until all participants answer. The same round/window token remains valid for other participants without permitting a second choice by the first one.
+
+The engine waits for every eligible human/bot claim response, resolves all winners ahead of kong/pong, and settles the same discard for all winners. No ordinary turn/claim deadline auto-passes a human. Card selection has a 30-second server-owned deadline with a uniform private-offer fallback; Collateral Damage has a 15-second yes fallback. The room keys timers by phase identity, preserves the absolute deadline on reconnect and clears timers when the phase changes or room is disposed. Timer callbacks validate the window before making each fallback decision, so a completed selection cannot spill into an ordinary turn. The last wall draw does not prematurely finish the round: final discard/pong chains resolve first. Every payment updates a zero-sum ledger; readiness and root counting do not assume fixed tile multiplicities.
+
+Unknown/malformed/out-of-turn actions return a short `error.code`; internal stack traces/state are not returned by action handlers. Room messages have a 20-action/second/session budget and transport payloads a 4 KiB cap. HTTP and WS origins are configured explicitly. This is a private prototype, not internet-scale abuse protection; origin checks do not authenticate existing seats. UUID invitation IDs admit new waiting seats only. Public listing is disabled and rooms lock on start.
+
+## Reconnection and lifecycle
+
+Lifecycle is waiting → active_play (declare) → card_selection → active_play (discard/claims/collateral) → optional last-16 card_selection → active_play → round_settlement → next round → game_complete at 8/16. The pure engine suspends a typed draw continuation at a selection barrier, then resumes exactly once after all acquisition effects. A replacement or bonus draw retains its draw context across the pause. New round instances reset cards/guards/locks while preserving balances and next dealer.
+
+An unexpected drop reserves the human seat for 30 seconds through Colyseus reconnection. Reconnect uses the private bearer token stored in sessionStorage, never in an invitation. No engine state is accepted from the browser. An active seat becomes a bot on grace expiry or explicit leave; a waiting seat is released. Host passes to the next connected human when necessary. Replacing bots between rounds and recovering seats after grace are future work; no existing balance is reassigned based on a supplied name. Room timers are cleared on disposal. Empty rooms are disposed by Colyseus after reconnection handling, rather than retaining all-bot sessions.
+
+`privateView`, `publicView` and transport integration tests enforce the serialization boundary. Read docs/LOCAL_PLAYTEST.md for operational limitations. No database, persistence provider, account service or production tunnel is introduced. Engine constructors may disable selection for deterministic fixtures and base-rule tests; live rooms always enable all Hex cards, and no client can supply a deck, cards, RNG, fixture flags or effect outcome.

@@ -10,7 +10,7 @@ The public build disables **Create a friends room (not yet available)** and hide
 
 ## Windows production
 
-1. Copy/clone the repository onto your Windows PC. Run the README install, build, typecheck and test commands in PowerShell. Git stays at the surrounding repository root.
+1. Clone the separate Hex Mahjong repository onto your Windows PC. Run the README install, build, typecheck and test commands in PowerShell. See [UPDATING.md](UPDATING.md) for automated release, update, and hosting commands.
 2. Decide the frontend origin and public tunnel endpoint. Edit `apps/web/public/config.json` to the HTTPS game-server URL and run `pnpm build`. This file is copied into dist; alternatively update `apps/web/dist/config.json` after building, with no JS rebuild. Never commit an ephemeral Quick Tunnel hostname. Config is public and contains no credentials.
 3. In PowerShell, set the exact frontend origins, comma separated, and port:
 

@@ -6,6 +6,9 @@
     "node": ">=22.12 <23"
   },
   "scripts": {
+    "host": "node scripts/hosting.mjs host",
+    "update:server": "node scripts/hosting.mjs update",
+    "release": "node scripts/hosting.mjs release",
     "dev": "node scripts/dev.mjs",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",

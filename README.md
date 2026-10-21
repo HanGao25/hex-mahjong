@@ -10,6 +10,8 @@ On this Mac, double-click **Play Hex Mahjong.command** or open http://localhost:
 
 ## Development setup (macOS and Windows PowerShell)
 
+For release and Windows update commands, see [UPDATING.md](docs/UPDATING.md).
+
 Install Node.js 22 LTS (22.12+; verified with 22.23.3) and pnpm 10.18.3. With Corepack available: `corepack enable`, then `corepack prepare pnpm@10.18.3 --activate`. From the surrounding repository root:
 
 ```text

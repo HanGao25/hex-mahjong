@@ -56,9 +56,13 @@ button.hex-tag{cursor:help;line-height:1.4;text-align:left;touch-action:manipula
 
 /* Reserve a single tile row so player zones stay compact. */
 .player{display:flex;flex-direction:column}
-.player-top{min-height:20px;flex-shrink:0}
-.player-meta{height:28px;flex-shrink:0;overflow:auto;margin:4px 0}
-.hex-owned{height:26px;flex-shrink:0;overflow-y:auto;align-content:flex-start;align-items:flex-start;margin:3px 0}
+.player .player-top{height:32px;min-height:32px;flex-shrink:0;align-items:center;gap:8px}
+.player-top h3,.player-top>strong{flex-shrink:0;white-space:nowrap}
+.player-info{display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:thin;height:32px}
+.player-info .player-meta{height:auto;flex-shrink:0;white-space:nowrap;margin:0;font-size:10px}
+.player-info .hex-owned{height:auto;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;flex-shrink:0;margin:0}
+.player-info .hex-tag,.player-info .blood-count{white-space:nowrap;flex-shrink:0}
+.player-info .hex-owned:empty{display:none}
 .player .backs,.player .revealed-hand{height:34px;flex-shrink:0;overflow-y:auto;align-content:flex-start;margin:4px 0}
 .player .discards{height:46px;min-height:46px;flex-shrink:0;overflow-y:auto;align-content:flex-start;padding-bottom:4px;scrollbar-width:thin}
 .player .meld-row{height:44px;min-height:44px;flex-shrink:0;overflow-y:auto;align-content:flex-start;align-items:flex-start;margin:5px 0 0;padding-bottom:4px;scrollbar-width:thin}

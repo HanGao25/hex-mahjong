@@ -55,6 +55,7 @@ describe('authoritative round transitions', () => {
   const game = fixture([c('11122233344455'), b('1234567891234'), b('1234567891234'), b('1234567891234')], c('9'), 8);
   declare(game); play(game, 0, { type: 'win' });
   expect(game.players.map(p => p.score)).toEqual([24, -8, -8, -8]);
+  expect(game.publicView().players[0]!.winningTiles).toEqual([{ suit: 'characters', rank: 5 }]);
   expect(game.players[0]!.won).toBe(true);expect(game.turn).toBe(1);expect(game.players[1]!.hand.length).toBe(14);
  });
  it('resolves all discard wins ahead of a competing pong', () => {
@@ -67,6 +68,8 @@ describe('authoritative round transitions', () => {
   expect(game.phase).toBe('claims');
   play(game, 2, { type: 'claim', claim: 'win' });
   expect(game.players[1]!.won && game.players[2]!.won).toBe(true);
+  expect(game.publicView().players[1]!.winningTiles).toEqual([winningTile.type]);
+  expect(game.publicView().players[2]!.winningTiles).toEqual([winningTile.type]);
   expect(game.players[3]!.melds).toHaveLength(0);
   expect(game.payments.filter(p => p.reason === 'win').map(p => [p.from, p.to, p.amount])).toEqual([[0, 1, 1], [0, 2, 1]]);
   expect(game.players[0]!.discards).toHaveLength(0);

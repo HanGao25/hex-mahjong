@@ -26,6 +26,7 @@ export class MahjongRound {
   readonly events: TableEvent[] = [];
   readonly resolved: Tile[] = [];
   readonly removed: Tile[] = [];
+  private readonly winningTiles: Tile['type'][][] = [[], [], [], []];
   readonly dealer: number;
   readonly number: number;
   readonly cap: ScoreCap;
@@ -192,7 +193,7 @@ export class MahjongRound {
       const score = this.winScore(seat, undefined, { selfDraw: true, afterKong: p.afterKong })!, crit = this.critical(seat);
       for (const payer of this.active()) if (payer !== seat) this.transfer(payer, seat, score.points * (crit ? 2 : 1), 'win', score.fan, score.patterns, crit);
       const scoredTile = this.has(seat, 'blood-river') ? p.hand.find(t => t.id === p.drawnId)!.type : null;
-      this.recordWinners([seat], null); this.completeWin(seat, true); this.log('win', seat, scoredTile);
+      this.recordWinners([seat], null); this.completeWin(seat, true, p.hand.find(t => t.id === p.drawnId)!.type); this.log('win', seat, scoredTile);
       this.opponentSuccess([seat]);
       if (this.active().length < 2) this.finish('three_winners'); else this.advance(seat);
     } else if (move.type === 'kong' && legal.kongIds.includes(move.tileId)) {
@@ -209,7 +210,8 @@ export class MahjongRound {
       if (this.pending!.replies.size === this.pending!.options.size) this.resolveClaims();
     } else throw Error('ACTION_NOT_ALLOWED');
   }
-  private completeWin(seat: number, selfDraw: boolean) {
+  private completeWin(seat: number, selfDraw: boolean, tile: Tile['type']) {
+    this.winningTiles[seat]!.push({ ...tile });
     const p = this.players[seat]!; p.winCount++;
     if (this.has(seat, 'blood-river')) {
       if (!p.handLocked) { p.handLocked = true; this.logHex('hand_locked', seat, 'blood-river'); }
@@ -300,7 +302,7 @@ export class MahjongRound {
       const score = s.scores.get(seat)!, crit = this.critical(seat), amount = score.points * (crit ? 2 : 1);
       const paid = this.transfer(q.from, seat, amount, 'win', score.fan, score.patterns, crit);
       if (s.choices.get(seat)) for (const payer of s.active) if (payer !== q.from && !s.winners.includes(payer)) this.transfer(payer, seat, Math.floor(paid / 2), 'collateral');
-      this.completeWin(seat, false); this.log('win', seat, q.tile.type);
+      this.completeWin(seat, false, q.tile.type); this.log('win', seat, q.tile.type);
     }
     this.opponentSuccess(s.winners);
     this.recordWinners(s.winners, q.from);
@@ -401,7 +403,7 @@ export class MahjongRound {
     return { number: this.number, phase: this.phase, turn: this.turn, dealer: this.dealer, wallRemaining: this.wall.length, bonusTurn: this.bonusTurn, selectionsCompleted: this.selectionsCompleted,
       selection: this.selection ? { id: `${this.number}:${this.seq}`, stage: this.selection.stage, tier: this.selection.tier, pendingSeats: [...this.selection.offers.keys()].filter(i => !this.selection!.choices.has(i)), deadline: null } : null,
       collateral: this.settlement ? { id: `${this.number}:${this.seq}`, pendingSeats: this.settlement.eligible.filter(i => !this.settlement!.choices.has(i)), deadline: null } : null,
-      players: this.players.map((p, seat) => ({ seat, missingSuit: p.missing, handCount: p.hand.length, revealedHand: this.phase === 'settled' ? p.hand.map(t => ({ ...t.type })) : null, won: p.won, exited: p.exited, score: p.score, cards: [...p.cards], winCount: p.winCount, handLocked: p.handLocked,
+      players: this.players.map((p, seat) => ({ seat, winningTiles: this.winningTiles[seat]!.map(tile => ({ ...tile })), missingSuit: p.missing, handCount: p.hand.length, revealedHand: this.phase === 'settled' ? p.hand.map(t => ({ ...t.type })) : null, won: p.won, exited: p.exited, score: p.score, cards: [...p.cards], winCount: p.winCount, handLocked: p.handLocked,
         melds: p.melds.map(m => ({ kind: m.kind, tiles: m.kind === 'concealed_kong' && this.phase !== 'settled' ? [] : m.tiles.map(t => ({ ...t.type })) })), discards: p.discards.map(t => ({ ...t.type })) })),
       pending: this.pending ? { seat: this.pending.from, tile: { ...this.pending.tile.type }, robKong: this.pending.robKong } : null,
       payments: this.payments.map(p => ({ ...p, patterns: p.patterns.map(pattern => ({ ...pattern })) })), events: this.events.slice(-100).map(e => ({ ...e, tile: e.tile ? { ...e.tile } : null })), endReason: this.endReason, nextDealer: this.nextDealer };

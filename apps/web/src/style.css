@@ -20,27 +20,27 @@
 
 .revealed-hand{display:flex;flex-wrap:wrap;gap:3px;margin:10px 0}.player:not(.south){display:flex;flex-direction:column}.player:not(.south) .discards{order:1}
 
-/* A permanent compact notice row keeps actions from moving the hand. */
-.mahjong-table,.mahjong-table.awaiting-decision{grid-template-areas:'. north .' 'west . east' 'center center center' 'south south south'}
-.table-center,.awaiting-decision .table-center{width:100%;height:164px;min-height:164px;max-width:760px;justify-self:center;padding:8px 12px;border:1px solid transparent;border-radius:10px;gap:6px;justify-content:center}
+/* Notices share the existing middle row rather than adding space above the hand. */
+.mahjong-table,.mahjong-table.awaiting-decision{grid-template-areas:'. north .' 'west center east' 'south south south'}
+.table-center,.awaiting-decision .table-center{width:100%;height:140px;min-height:0;max-width:760px;justify-self:center;align-self:center;padding:8px 12px;border:1px solid transparent;border-radius:10px;gap:6px;justify-content:center}
 .awaiting-decision .table-center{border-color:#d5be8c88;background:#15382f;box-shadow:0 0 12px #d5be8c12}
 .table-center .table-mark{display:none}
 .table-center .turn-label{font-size:12px;line-height:1.4;margin:0;max-width:100%;min-height:17px}
 .awaiting-decision .turn-label{color:#f0d9a5;font-weight:600}
-.table-center .pending{flex-direction:row;gap:8px;min-height:44px}
+.table-center .pending{flex-direction:column;gap:3px;min-height:44px}
 .table-center .pending .tile-face{width:28px;height:40px;padding:1px;border-bottom-width:2px}
 .table-decisions{width:100%;min-width:0}
-.table-decisions .action-bar{justify-content:center;gap:6px;margin:0;max-height:94px;overflow-y:auto;padding:2px}
+.table-decisions .action-bar{position:absolute;z-index:7;top:calc(50% + 46px);left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 80px);border-radius:8px;background:#15382f;box-shadow:0 4px 12px #0003;justify-content:center;gap:6px;margin:0;max-height:94px;overflow-y:auto;padding:2px}
 .table-decisions .action-bar:empty{display:none}
 .table-decisions .action-bar button{min-height:40px;min-width:66px;padding:7px 12px;font-size:12px;font-weight:600}
-.table-decisions .declare,.table-decisions .hex-selection,.table-decisions .collateral-choice{position:absolute;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);width:min(660px,100%);max-height:min(560px,70dvh);overflow-y:auto;margin:0;padding:18px;border:1px solid #d5be8c;border-radius:12px;background:#15382f;box-shadow:0 8px 30px #0007}
+.table-decisions .declare,.table-decisions .hex-selection,.table-decisions .collateral-choice{position:absolute;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);width:min(660px,calc(100vw - 72px));max-height:min(560px,70dvh);overflow-y:auto;margin:0;padding:18px;border:1px solid #d5be8c;border-radius:12px;background:#15382f;box-shadow:0 8px 30px #0007}
 .table-decisions .hex-card{min-width:0;min-height:160px;padding:14px;gap:8px}
 .table-decisions .hex-offers{gap:10px}
 .table-decisions .declare p{max-width:520px;margin:10px auto;line-height:1.5}
 .hand-heading{min-height:36px}
 @media(max-width:700px){
- .mahjong-table,.mahjong-table.awaiting-decision{grid-template-areas:'north north north' 'west . east' 'center center center' 'south south south'}
- .table-center,.awaiting-decision .table-center{height:180px;min-height:180px;padding:8px}
+ .mahjong-table,.mahjong-table.awaiting-decision{grid-template-areas:'north north north' 'west center east' 'south south south'}
+ .table-center,.awaiting-decision .table-center{height:140px;min-height:0;padding:4px}
  .table-decisions .action-bar button{min-height:44px;padding:7px 10px}
  .table-decisions .declare,.table-decisions .hex-selection,.table-decisions .collateral-choice{padding:12px;max-height:65dvh}
  .table-decisions .declare button{margin:6px 3px}

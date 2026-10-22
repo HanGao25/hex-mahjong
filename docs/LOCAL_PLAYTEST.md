@@ -41,7 +41,9 @@ For local multi-browser testing use **Create a friends room**, copy the invitati
 
 Pending card offers, locked choices and decision deadlines are retained on reconnection. The 30-second card timer and 15-second collateral timer continue while offline; reconnecting does not reset them.
 
-Refresh/disconnect reserves your seat for 30 seconds; click **Reconnect to your table** to reclaim it within that grace period. After grace or an explicit leave, a bot takes over the seat for the rest of this session. No mid-session seat recovery or server-restart persistence yet.
+Refresh/disconnect reserves your seat for 30 minutes. The browser keeps the table visible and retries every two seconds after a dropped connection. On returning from another app or regaining network access, it checks the connection; an unresponsive socket is replaced after five seconds. Mobile operating systems can still suspend sockets while the app is in the background.
+
+On another browser or device, enter the same room code and a username that uniquely identifies your seat, then click **Join room**. Matching ignores capitalization and surrounding spaces. This restores your seat, hand, scores and host role, including during a started/full room, and replaces the previous device connection. Blank or duplicate names require the original browser's stored reconnect token. Names are room-scoped recovery credentials: anyone knowing a unique username and room code can reclaim that seat. After the grace period or explicit leave, the seat is released in the lobby or handed to a bot in a started game. Server restarts still lose all rooms.
 
 ## Included and excluded
 

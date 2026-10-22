@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { Server } from '@colyseus/core';
+import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'node:http';
 import { Client, type Room } from 'colyseus.js';
@@ -221,4 +221,30 @@ it('rejects invalid names without occupying a waiting seat',async()=>{
  const friend=await client.joinById(host.roomId);rooms.push(friend);
  friend.onMessage('public',()=>{});friend.onMessage('table',()=>{});
  expect(friend.roomId).toBe(host.roomId);
+});
+
+
+it('recovers a unique name on a different client during a locked game and replaces the old device',async()=>{
+ const host=await client.create('hex',{scoreCap:8,rounds:8,username:'Alice'});rooms.push(host);
+ host.onMessage('public',()=>{});
+ let latest:TableSnapshot|null=null;host.onMessage('table',(v:TableSnapshot)=>{latest=v;});
+ const wait=async(test:()=>boolean)=>{const end=Date.now()+3000;while(!test()){if(Date.now()>end)throw Error('Timed out');await new Promise(resolve=>setTimeout(resolve,10));}};
+ await wait(()=>!!latest);host.send('action',{type:'start_game'});await wait(()=>!!latest?.round);
+ const hand=latest!.you.hand.map(t=>t.id),session=host.sessionId;
+ const token=await matchMaker.remoteRoomCall(host.roomId,'recoverUsername',['  ALICE  ']);
+ const otherDevice=new Client(`http://127.0.0.1:${(http.address() as import('node:net').AddressInfo).port}`);
+ const resumed=await otherDevice.reconnect(token);rooms[rooms.indexOf(host)]=resumed;
+ resumed.onMessage('public',()=>{});
+ const restored=await new Promise<TableSnapshot>(resolve=>resumed.onMessage('table',resolve));
+ expect(resumed.sessionId).toBe(session);expect(restored.you.hand.map(t=>t.id)).toEqual(hand);
+ expect(restored.room.hostId).toBe(session);expect(restored.room.seats[0]).toMatchObject({connected:true,bot:false,username:'Alice'});
+ await expect(matchMaker.remoteRoomCall(host.roomId,'recoverUsername',['Unknown'])).rejects.toThrow();
+});
+
+it('refuses ambiguous and empty names without disconnecting either player',async()=>{
+ const host=await client.create('hex',{scoreCap:8,rounds:8,username:'Same'});rooms.push(host);host.onMessage('public',()=>{});host.onMessage('table',()=>{});
+ const friend=await client.joinById(host.roomId,{username:'same'});rooms.push(friend);friend.onMessage('public',()=>{});friend.onMessage('table',()=>{});
+ await expect(matchMaker.remoteRoomCall(host.roomId,'recoverUsername',['same'])).rejects.toThrow();
+ await expect(matchMaker.remoteRoomCall(host.roomId,'recoverUsername',[''])).rejects.toThrow();
+ expect(host.connection.isOpen).toBe(true);expect(friend.connection.isOpen).toBe(true);
 });

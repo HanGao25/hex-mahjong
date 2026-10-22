@@ -43,6 +43,7 @@ export class HexRoom extends Room {
     this.roomId = code;
     this.snapshot = { roomId: this.roomId, lifecycle: 'waiting', settings, hostId: null,
       seats: Array.from({ length: 4 }, (_, index) => ({ index, playerId: null, connected: false, bot: false })) };
+    this.onMessage('ping', client => client.send('pong'));
     this.onMessage('action', (client, action: unknown) => {
       const now = Date.now(), budget = this.actions.get(client.sessionId) ?? { since: now, count: 0 };
       if (now - budget.since >= 1000) { budget.since = now; budget.count = 0; }
@@ -80,6 +81,21 @@ export class HexRoom extends Room {
     seat.playerId = client.sessionId; seat.connected = true; seat.username = username || undefined;
     this.snapshot.hostId ??= client.sessionId;
     this.publish();
+  }
+  // Names are room-scoped recovery credentials for this friends-only game.
+  async recoverUsername(value: unknown): Promise<string> {
+    const name = parseUsername(value).toLowerCase();
+    const matches = this.snapshot.seats.filter(s => !s.bot && s.username?.toLowerCase() === name);
+    if (!name || matches.length !== 1) throw Error('NAME_NOT_UNIQUE');
+    const seat = matches[0]!;
+    const active = this.clients.find(c => c.sessionId === seat.playerId);
+    if (active) active.leave(4010); // A device switch also replaces a suspended socket.
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const entry = Object.entries(this._reconnections).find(([, [session]]) => session === seat.playerId);
+      if (entry) return `${this.roomId}:${entry[0]}`;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw Error('RECOVERY_UNAVAILABLE');
   }
   private publish() {
     if (this.round) this.snapshot.lifecycle = this.round.phase === 'settled' ? this.round.number === this.snapshot.settings.rounds ? 'game_complete' : 'round_settlement' : this.round.phase === 'card_selection' ? 'card_selection' : 'active_play';
@@ -143,7 +159,7 @@ export class HexRoom extends Room {
     seat.connected = false; this.publish();
     try {
       if (consented) throw Error('LEFT');
-      await this.allowReconnection(client, 300); seat.connected = true;
+      await this.allowReconnection(client, 1800); seat.connected = true;
     } catch {
       seat.playerId = this.round ? `bot-${seat.index}` : null; seat.bot = !!this.round; seat.username = undefined;
       this.actions.delete(client.sessionId);

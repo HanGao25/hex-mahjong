@@ -2,7 +2,7 @@
 
 A four-seat Sichuan Mahjong + Hex cards project with its own Git repository and pnpm workspace. Nothing is published automatically.
 
-**Current milestone: playable Hex Mahjong against three local bots.** Create a table, declare your missing suit and play complete rounds with scoring, settlement and a payment ledger. English/中文, phone layouts, invitations, 30-second reconnection, bot takeover, dealer rotation and score carryover for 8/16 rounds are supported. All nine Hex cards are enabled: choose one of two private offers after 定缺, then choose again at the first draw boundary with 16 or fewer wall tiles left. Cards reset each round.
+**Current milestone: playable Hex Mahjong against three local bots.** Create a table, declare your missing suit and play complete rounds with scoring, settlement and a payment ledger. English/中文, phone layouts, invitations, automatic reconnection with a 30-minute seat reservation and unique-username recovery across devices, bot takeover, dealer rotation and score carryover for 8/16 rounds are supported. All nine Hex cards are enabled: choose one of two private offers after 定缺, then choose again at the first draw boundary with 16 or fewer wall tiles left. Cards reset each round.
 
 The university website’s **Games → Hex Mahjong · Play with bots** entry opens the standalone browser version. It needs only static hosting; no Windows server or account is needed. Friend rooms are disabled there until hosting is ready. Run `pnpm build:static` to regenerate `../hex-mahjong-play/`, then upload that complete folder and the parent `games.html` through the usual website publishing process. Nothing uploads automatically. Refreshing or leaving the solo page ends its in-memory session.
 

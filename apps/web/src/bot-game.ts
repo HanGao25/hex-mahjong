@@ -1,5 +1,5 @@
 import { createRound, type MahjongRound } from '@hex/mahjong-engine';
-import { parseSettings, type ClientAction, type PublicRoom, type Rng, type RoomSettings, type RoundView, type TableSnapshot } from '@hex/shared';
+import { parseSettings, parseUsername, type ClientAction, type PublicRoom, type Rng, type RoomSettings, type RoundView, type TableSnapshot } from '@hex/shared';
 export interface BotGameEnvironment {
   rng: Rng;
   id: () => string;
@@ -17,9 +17,9 @@ export class BotGame {
   private decisionKey: string | null = null;
   private deadline: number | null = null;
   private disposed = false;
-  constructor(settings: RoomSettings, private readonly env: BotGameEnvironment) {
+  constructor(settings: RoomSettings, private readonly env: BotGameEnvironment, username = "") {
     this.room = { roomId: env.id(), lifecycle: 'waiting', settings: parseSettings(settings), hostId: 'local-player',
-      seats: Array.from({ length: 4 }, (_, index) => ({ index, playerId: index ? `bot-${index}` : 'local-player', connected: !index, bot: !!index })) };
+      seats: Array.from({ length: 4 }, (_, index) => ({ index, username: index ? undefined : parseUsername(username) || undefined, playerId: index ? `bot-${index}` : 'local-player', connected: !index, bot: !!index })) };
     this.publish();
   }
   receive(action: ClientAction): void {

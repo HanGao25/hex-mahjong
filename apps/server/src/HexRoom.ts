@@ -1,6 +1,6 @@
 import { randomUUID, randomInt } from 'node:crypto';
 import { Room, type Client } from '@colyseus/core';
-import { CARDS, parseSettings, type PublicRoom, type Move, type Suit, type RoundView } from '@hex/shared';
+import { CARDS, parseSettings, parseUsername, type PublicRoom, type Move, type Suit, type RoundView } from '@hex/shared';
 import { createRound, type MahjongRound } from '@hex/mahjong-engine';
 export const serverRng = { next: () => randomInt(0x100000000) / 0x100000000 };
 function parseMove(value: unknown): Move {
@@ -15,6 +15,7 @@ function parseMove(value: unknown): Move {
   if (a.type === 'claim' && exact('type', 'claim') && ['win', 'kong', 'pong', 'pass'].includes(a.claim as string)) return { type: 'claim', claim: a.claim as 'win' | 'kong' | 'pong' | 'pass' };
   throw Error('INVALID_ACTION');
 }
+const activeRoomCodes = new Set<string>();
 export class HexRoom extends Room {
   maxClients = 4;
   protected botDelay = 1000;
@@ -31,9 +32,15 @@ export class HexRoom extends Room {
     return createRound(serverRng, randomUUID, dealer, this.snapshot.settings.scoreCap, number, balances, true, this.snapshot.settings.hexSelections ?? 2);
   }
   async onCreate(options: unknown) {
-    const settings = parseSettings(options);
+    const { username, ...roomOptions } = options as Record<string, unknown>;
+    parseUsername(username);
+    const settings = parseSettings(roomOptions);
     await this.setPrivate(true);
-    this.roomId = randomUUID();
+    if (activeRoomCodes.size >= 900000) throw Error('ROOM_CODES_EXHAUSTED');
+    let code: string;
+    do { code = String(randomInt(100000, 1000000)); } while (activeRoomCodes.has(code));
+    activeRoomCodes.add(code);
+    this.roomId = code;
     this.snapshot = { roomId: this.roomId, lifecycle: 'waiting', settings, hostId: null,
       seats: Array.from({ length: 4 }, (_, index) => ({ index, playerId: null, connected: false, bot: false })) };
     this.onMessage('action', (client, action: unknown) => {
@@ -47,7 +54,9 @@ export class HexRoom extends Room {
         if (!action || typeof action !== 'object' || Array.isArray(action)) throw Error('INVALID_ACTION');
         const a = action as Record<string, unknown>;
         const host = this.snapshot.hostId === client.sessionId;
-        if (a.type === 'start_game' && Object.keys(a).length === 1 && host && !this.round) {
+        if (a.type === 'update_settings' && Object.keys(a).length === 2 && host && !this.round) {
+          this.snapshot.settings = parseSettings(a.settings);
+        } else if (a.type === 'start_game' && Object.keys(a).length === 1 && host && !this.round) {
           for (const s of this.snapshot.seats) if (!s.playerId) { s.playerId = `bot-${s.index}`; s.bot = true; }
           void this.lock();
           this.round = this.buildRound(seat.index);
@@ -63,11 +72,12 @@ export class HexRoom extends Room {
       }
     });
   }
-  onJoin(client: Client) {
+  onJoin(client: Client, options: { username?: unknown } = {}) {
+    const username = parseUsername(options.username);
     if (this.round) throw Error('ROOM_ALREADY_STARTED');
     const seat = this.snapshot.seats.find(s => s.playerId === null);
     if (!seat) throw Error('ROOM_UNAVAILABLE');
-    seat.playerId = client.sessionId; seat.connected = true;
+    seat.playerId = client.sessionId; seat.connected = true; seat.username = username || undefined;
     this.snapshot.hostId ??= client.sessionId;
     this.publish();
   }
@@ -133,13 +143,13 @@ export class HexRoom extends Room {
     seat.connected = false; this.publish();
     try {
       if (consented) throw Error('LEFT');
-      await this.allowReconnection(client, 30); seat.connected = true;
+      await this.allowReconnection(client, 300); seat.connected = true;
     } catch {
-      seat.playerId = this.round ? `bot-${seat.index}` : null; seat.bot = !!this.round;
+      seat.playerId = this.round ? `bot-${seat.index}` : null; seat.bot = !!this.round; seat.username = undefined;
       this.actions.delete(client.sessionId);
       if (this.snapshot.hostId === client.sessionId) this.snapshot.hostId = this.snapshot.seats.find(s => s.connected && !s.bot)?.playerId ?? null;
     }
     this.publish(); this.scheduleBot();
   }
-  onDispose() { this.botTimer?.clear(); this.decisionTimer?.clear(); }
+  onDispose() { activeRoomCodes.delete(this.roomId); this.botTimer?.clear(); this.decisionTimer?.clear(); }
 }

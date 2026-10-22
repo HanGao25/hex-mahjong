@@ -179,3 +179,46 @@ it('automatically continues a connected human Blood River seat after the first w
  expect(snap!.round!.players[0]!.discards.length).toBeGreaterThan(0);
  expect(snap!.room.seats[0]).toMatchObject({bot:false,connected:true});
 });
+
+it('uses six-digit codes, broadcasts host lobby edits, keeps names on reconnect and freezes settings after start',async()=>{
+ const host=await client.create('hex',{scoreCap:16,rounds:8,hexSelections:2,username:'  Alice  '});rooms.push(host);
+ host.onMessage('public',()=>{});host.onMessage('table',()=>{});
+ expect(host.roomId).toMatch(/^[1-9][0-9]{5}$/);
+ const friend=await client.joinById(host.roomId,{username:'Bob'});rooms.push(friend);
+ friend.onMessage('public',()=>{});friend.onMessage('table',()=>{});
+ const settings={scoreCap:32,rounds:16,hexSelections:3};
+ const updated=new Promise<TableSnapshot>(resolve=>friend.onMessage('table',(value:TableSnapshot)=>{if(value.room.settings.scoreCap===32)resolve(value);}));
+ host.send('action',{type:'update_settings',settings});
+ const snapshot=await updated;
+ expect(snapshot.room.settings).toEqual(settings);
+ expect(snapshot.room.seats.map(s=>s.username)).toEqual(['Alice','Bob',undefined,undefined]);
+ const denied=new Promise<{code:string}>(resolve=>friend.onMessage('error',resolve));
+ friend.send('action',{type:'update_settings',settings:{scoreCap:8,rounds:8}});
+ expect((await denied).code).toBe('ACTION_NOT_ALLOWED');
+ const invalid=new Promise<{code:string}>(resolve=>host.onMessage('error',resolve));
+ host.send('action',{type:'update_settings',settings:{scoreCap:7,rounds:8}});
+ expect((await invalid).code).toBe('INVALID_ACTION');
+ const token=friend.reconnectionToken,session=friend.sessionId;
+ const dropped=new Promise<PublicRoom>(resolve=>host.onMessage('public',(value:PublicRoom)=>{if(!value.seats[1]!.connected)resolve(value);}));
+ friend.connection.close();await dropped;
+ const rejoined=await client.reconnect(token);rooms[rooms.indexOf(friend)]=rejoined;
+ rejoined.onMessage('public',()=>{});rejoined.onMessage('table',()=>{});rejoined.onMessage('error',()=>{});
+ expect(rejoined.sessionId).toBe(session);
+ const started=new Promise<TableSnapshot>(resolve=>host.onMessage('table',(value:TableSnapshot)=>{if(value.round)resolve(value);}));
+ host.send('action',{type:'start_game'});
+ const active=await started;
+ expect(active.room.seats[1]!.username).toBe('Bob');expect(active.room.settings).toEqual(settings);
+ const frozen=new Promise<{code:string}>(resolve=>host.onMessage('error',resolve));
+ host.send('action',{type:'update_settings',settings:{scoreCap:8,rounds:8}});
+ expect((await frozen).code).toBe('ACTION_NOT_ALLOWED');
+});
+
+it('rejects invalid names without occupying a waiting seat',async()=>{
+ await expect(client.create('hex',{scoreCap:8,rounds:8,username:'x'.repeat(25)})).rejects.toThrow();
+ const host=await client.create('hex',{scoreCap:8,rounds:8});rooms.push(host);
+ host.onMessage('public',()=>{});host.onMessage('table',()=>{});
+ await expect(client.joinById(host.roomId,{username:'bad\nname'})).rejects.toThrow();
+ const friend=await client.joinById(host.roomId);rooms.push(friend);
+ friend.onMessage('public',()=>{});friend.onMessage('table',()=>{});
+ expect(friend.roomId).toBe(host.roomId);
+});

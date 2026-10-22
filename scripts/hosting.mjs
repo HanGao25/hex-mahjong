@@ -74,7 +74,7 @@ try {
     }
     await run('git', ['push', 'origin', 'HEAD:main']);
     console.log('GitHub updated. Uploading the standalone bot game to the physics website...');
-    await run('rsync', ['-av', '--delete', fileURLToPath(new URL('../../hex-mahjong-play/', import.meta.url)),
+    await run('rsync', ['-avc', '--delete', fileURLToPath(new URL('../../hex-mahjong-play/', import.meta.url)),
       'hgao@calys.physics.mcgill.ca:~/WWW/hex-mahjong-play/']);
     console.log('Release complete: GitHub and the website bot-game files are updated.\nThe physics website may take up to six hours to refresh.\nOn Windows, stop the game server (keep the tunnel running), then run pnpm.cmd update:server.\nChanges to the surrounding website, including games.html, are published separately.');
   } else if (mode === 'host' || mode === 'update') {

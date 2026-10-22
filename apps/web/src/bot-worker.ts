@@ -1,6 +1,6 @@
 import { BotGame } from './bot-game.js';
 import type { ClientAction, RoomSettings, TableSnapshot } from '@hex/shared';
-interface Message { type: 'init'; settings: RoomSettings }
+interface Message { type: 'init'; settings: RoomSettings; username?: string }
 interface ActionMessage { type: 'action'; action: ClientAction }
 // No document, sockets, fetch, Node APIs, or external service is needed for solo play.
 const host = globalThis as unknown as {
@@ -20,7 +20,7 @@ host.onmessage = ({ data }) => {
         later: (callback, milliseconds) => { const timer = setTimeout(callback, milliseconds); return () => clearTimeout(timer); },
         snapshot: snapshot => host.postMessage({ type: 'table', snapshot }),
         error: code => host.postMessage({ type: 'error', code }),
-      });
+      }, data.username);
     } else if (data.type === 'action') game?.receive(data.action);
   } catch { host.postMessage({ type: 'error', code: 'LOCAL_GAME_ERROR' }); }
 };

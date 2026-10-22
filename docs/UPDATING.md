@@ -23,7 +23,9 @@ After those checks pass it stages ALL non-ignored changes in the Hex Mahjong
 repository, including new files and deletions, commits them if needed, and pushes
 main to GitHub. Keep unrelated or unfinished game changes out of a release.
 
-It then runs rsync to upload only the complete sibling `hex-mahjong-play/` folder
+It then runs rsync with checksum comparison (`-avc`) so unchanged assets are not
+uploaded again when a build changes their timestamps. It uploads only the complete
+sibling `hex-mahjong-play/` folder
 to `hgao@calys.physics.mcgill.ca:~/WWW/hex-mahjong-play/`. Deletion is limited to
 that remote bot-game directory. SSH may ask for your password. The university's
 public website may take up to six hours to refresh.

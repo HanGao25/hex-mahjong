@@ -54,10 +54,15 @@ export const CARDS = [
   { id:'radiant-echo', tier:'prismatic', name:{en:'Radiant Echo',zh:'璀璨回响'}, description:{en:'Sample owned tiles 5 times with replacement; insert fresh copies into random wall positions.',zh:'从持有牌中有放回随机抽取5次，各复制一张全新ID牌插入牌墙随机位置。'}, effect:{trigger:'selection',status:'implemented',questions:[]} },
   { id:'troublemaker', tier:'gold', name:{en:'Troublemaker',zh:'搅屎棍'}, description:{en:'Copy every player’s currently concealed missing-suit tiles into random wall positions, using each player’s declared missing suit. Originals stay in hand.',zh:'获得时，将所有玩家当前手中各自定缺花色的牌各复制一张，以全新ID插入牌墙随机位置；原手牌不变，色盲及已退场者也计入。'}, effect:{trigger:'selection',status:'implemented',questions:[]} },
 ] as const satisfies readonly Card[];
-export interface Seat { index: number; playerId: string | null; connected: boolean; bot: boolean }
+export function parseUsername(input: unknown): string {
+  if (input === undefined) return "";
+  if (typeof input !== "string" || input.trim().length > 24 || /[\u0000-\u001f\u007f]/.test(input)) throw new Error("INVALID_USERNAME");
+  return input.trim();
+}
+export interface Seat { username?: string | undefined; index: number; playerId: string | null; connected: boolean; bot: boolean }
 export interface PublicRoom { roomId: string; lifecycle: Lifecycle; settings: RoomSettings; seats: Seat[]; hostId: string | null }
 export interface PrivatePlayer { hand: readonly Tile[]; offers: readonly CardId[]; selected: readonly CardId[] }
-export type ClientAction = { type: 'start_game' } | { type: 'next_round' } | { type: 'play'; decisionId: string; move: Move };
+export type ClientAction = { type: 'update_settings'; settings: RoomSettings } | { type: 'start_game' } | { type: 'next_round' } | { type: 'play'; decisionId: string; move: Move };
 // extraTurnConsumed resets on a new primary turn, never on its bonus turn.
 export interface DoubleWieldState { extraTurnConsumed: boolean; selfDrawOnly: boolean; suppressSelfDrawDoubling: boolean }
 

@@ -25,9 +25,9 @@ export class BotGame {
   receive(action: ClientAction): void {
     if (this.disposed) return;
     try {
-      if (action.type === 'start_game' && !this.round) this.round = createRound(this.env.rng, this.env.id, 0, this.room.settings.scoreCap, 1, [0, 0, 0, 0], true);
+      if (action.type === 'start_game' && !this.round) this.round = createRound(this.env.rng, this.env.id, 0, this.room.settings.scoreCap, 1, [0, 0, 0, 0], true, this.room.settings.hexSelections ?? 2);
       else if (action.type === 'next_round' && this.round?.phase === 'settled' && this.round.number < this.room.settings.rounds) {
-        this.round = createRound(this.env.rng, this.env.id, this.round.nextDealer, this.room.settings.scoreCap, this.round.number + 1, this.round.players.map(p => p.score), true);
+        this.round = createRound(this.env.rng, this.env.id, this.round.nextDealer, this.room.settings.scoreCap, this.round.number + 1, this.round.players.map(p => p.score), true, this.room.settings.hexSelections ?? 2);
       } else if (action.type === 'play' && this.round) this.round.act(0, action.move, action.decisionId);
       else throw Error('ACTION_NOT_ALLOWED');
       this.publish(); this.scheduleBot();

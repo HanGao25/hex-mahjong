@@ -1,13 +1,16 @@
 export const SCORE_CAPS = [8, 16, 32, 'uncapped'] as const;
 export const ROUND_COUNTS = [8, 16] as const;
 export type ScoreCap = typeof SCORE_CAPS[number];
-export interface RoomSettings { scoreCap: ScoreCap; rounds: typeof ROUND_COUNTS[number] }
+export const HEX_SELECTION_COUNTS = [1, 2, 3] as const;
+export type HexSelectionCount = typeof HEX_SELECTION_COUNTS[number];
+export interface RoomSettings { hexSelections?: HexSelectionCount; scoreCap: ScoreCap; rounds: typeof ROUND_COUNTS[number] }
 export function parseSettings(input: unknown): RoomSettings {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_SETTINGS');
   const value = input as Record<string, unknown>;
-  if (Object.keys(value).some(k => k !== 'scoreCap' && k !== 'rounds') ||
+  if (Object.keys(value).some(k => k !== 'scoreCap' && k !== 'rounds' && k !== 'hexSelections') ||
+      (value.hexSelections !== undefined && !HEX_SELECTION_COUNTS.includes(value.hexSelections as HexSelectionCount)) ||
       !SCORE_CAPS.includes(value.scoreCap as ScoreCap) || !ROUND_COUNTS.includes(value.rounds as 8 | 16)) throw new Error('INVALID_SETTINGS');
-  return { scoreCap: value.scoreCap as ScoreCap, rounds: value.rounds as 8 | 16 };
+  return { ...(value.hexSelections === undefined ? {} : { hexSelections: value.hexSelections as HexSelectionCount }), scoreCap: value.scoreCap as ScoreCap, rounds: value.rounds as 8 | 16 };
 }
 export type Lifecycle = 'waiting' | 'card_selection' | 'active_play' | 'round_settlement' | 'game_complete';
 export type SelectionTrigger = 'before_dealer_first_discard' | 'before_draw_with_16_remaining';
@@ -23,7 +26,7 @@ export function randomIndex(length: number, rng: Rng): number {
   return Math.floor(n * length);
 }
 export type Tier = 'silver' | 'gold' | 'prismatic';
-export type CardId = 'great-wall' | 'petty-theft' | 'sneaky-theft' | 'grand-theft' | 'radiant-echo' | 'bathroom-break' | 'loan-construction' | 'fan-the-flames' | 'cheat' | 'machine-malfunction' | 'point-pong-kong' | 'double-wield' | 'collateral-damage' | 'colour-blind' | 'jeweled-gauntlet' | 'blood-river' | 'echo';
+export type CardId = 'troublemaker' | 'great-wall' | 'petty-theft' | 'sneaky-theft' | 'grand-theft' | 'radiant-echo' | 'bathroom-break' | 'loan-construction' | 'fan-the-flames' | 'cheat' | 'machine-malfunction' | 'point-pong-kong' | 'double-wield' | 'collateral-damage' | 'colour-blind' | 'jeweled-gauntlet' | 'blood-river' | 'echo';
 export interface Card {
   readonly id: CardId; readonly tier: Tier;
   readonly name: { readonly en: string; readonly zh: string };
@@ -32,7 +35,7 @@ export interface Card {
   readonly effect: { readonly trigger: string; readonly status: 'specified' | 'blocked' | 'implemented'; readonly questions: readonly string[] };
 }
 export const CARDS = [
-  { id:'bathroom-break', tier:'silver', selectionStage:'last16', name:{en:'Bathroom Break',zh:'上厕所'}, description:{en:'Second selection only. Leave this round immediately; keep earlier transfers and take no part in any later payments.',zh:'仅第二次选择可获得。直接离开本轮游戏，保留此前流水，之后所有收付款与你无关。'},effect:{trigger:'selection',status:'implemented',questions:[]} },
+  { id:'bathroom-break', tier:'silver', selectionStage:'last16', name:{en:'Bathroom Break',zh:'上厕所'}, description:{en:'Last-16 selection only. Leave this round immediately; keep earlier transfers and take no part in any later payments.',zh:'仅最后16张选择可获得。直接离开本轮游戏，保留此前流水，之后所有收付款与你无关。'},effect:{trigger:'selection',status:'implemented',questions:[]} },
   { id:'loan-construction', tier:'gold', selectionStage:'initial', name:{en:'Loan Construction',zh:'贷款建设'}, description:{en:'First selection only. Return every concealed tile of your declared missing suit to random wall positions, then refill in wall order, skipping all missing-suit tiles.',zh:'仅首次选择可获得。将手中全部定缺花色牌放回牌墙随机位置，再按牌墙顺序跳过定缺牌补齐，保证清缺。'},effect:{trigger:'selection',status:'implemented',questions:[]} },
   { id:'fan-the-flames', tier:'gold', name:{en:'Fan the Flames',zh:'煽风点火'}, description:{en:'For the rest of this round, every player, including you, needs at least 2 fan to win.',zh:'本轮剩余时间内，所有玩家（包括自己）必须至少2番才能胡牌；重复获得不叠加。'},effect:{trigger:'win_validation',status:'implemented',questions:[]} },
   { id:'cheat', tier:'silver', name:{en:'Cheat',zh:'作弊'}, description:{en:'Your next draw copies a randomly selected owned concealed or meld tile instead of drawing from the wall.',zh:'下次摸牌随机复制一张持有牌（手牌或副露），不消耗牌墙。'}, effect:{trigger:'next_draw',status:'implemented',questions:[]} },
@@ -49,6 +52,7 @@ export const CARDS = [
   { id:'sneaky-theft', tier:'gold', name:{en:'Sneaky Theft',zh:'偷偷摸摸'}, description:{en:'After each unclaimed discard, a 25% chance to draw and restart your turn. Can repeat.',zh:'每次弃牌无人认领后，25%概率再摸牌并重新开始回合，可连续触发。'}, effect:{trigger:'unclaimed_discard',status:'implemented',questions:[]} },
   { id:'grand-theft', tier:'prismatic', name:{en:'Grand Theft',zh:'大偷大摸'}, description:{en:'After each unclaimed discard, a 45% chance to draw and restart your turn. Can repeat.',zh:'每次弃牌无人认领后，45%概率再摸牌并重新开始回合，可连续触发。'}, effect:{trigger:'unclaimed_discard',status:'implemented',questions:[]} },
   { id:'radiant-echo', tier:'prismatic', name:{en:'Radiant Echo',zh:'璀璨回响'}, description:{en:'Sample owned tiles 5 times with replacement; insert fresh copies into random wall positions.',zh:'从持有牌中有放回随机抽取5次，各复制一张全新ID牌插入牌墙随机位置。'}, effect:{trigger:'selection',status:'implemented',questions:[]} },
+  { id:'troublemaker', tier:'gold', name:{en:'Troublemaker',zh:'搅屎棍'}, description:{en:'Copy every player’s currently concealed missing-suit tiles into random wall positions, using each player’s declared missing suit. Originals stay in hand.',zh:'获得时，将所有玩家当前手中各自定缺花色的牌各复制一张，以全新ID插入牌墙随机位置；原手牌不变，色盲及已退场者也计入。'}, effect:{trigger:'selection',status:'implemented',questions:[]} },
 ] as const satisfies readonly Card[];
 export interface Seat { index: number; playerId: string | null; connected: boolean; bot: boolean }
 export interface PublicRoom { roomId: string; lifecycle: Lifecycle; settings: RoomSettings; seats: Seat[]; hostId: string | null }
@@ -68,7 +72,7 @@ export interface Pattern { key: 'all_pongs' | 'pure_suit' | 'seven_pairs' | 'pur
 export interface Payment { id: number; from: number; to: number; amount: number; reason: 'win' | 'kong' | 'pong_card' | 'collateral' | 'flower_pig' | 'not_ready' | 'refund'; fan: number; patterns: Pattern[]; critical: boolean }
 export interface TableEvent { id: number; kind: 'deal' | 'declare' | 'discard' | 'pong' | 'kong' | 'win' | 'pass' | 'draw' | 'settled' | 'hex'; seat: number; tile: TileType | null; effect?: 'selection' | 'acquired' | 'selection_skipped' | 'wall_removed' | 'wall_copied' | 'cheat_draw' | 'extra_turn' | 'bonus_interrupted' | 'hand_locked' | 'critical' | 'round_exit' | 'hand_refilled' | 'turn_restarted'; card?: CardId; count?: number }
 export interface RoundPlayerView { seat: number; missingSuit: Suit | null; handCount: number; revealedHand: TileType[] | null; won: boolean; exited: boolean; score: number; cards: CardId[]; winCount: number; handLocked: boolean; melds: { kind: MeldKind; tiles: TileType[] }[]; discards: TileType[] }
-export interface RoundView { number: number; phase: RoundPhase; turn: number; dealer: number; wallRemaining: number; players: RoundPlayerView[]; pending: { seat: number; tile: TileType; robKong: boolean } | null; payments: Payment[]; events: TableEvent[]; endReason: 'three_winners' | 'wall_empty' | null; nextDealer: number; bonusTurn: boolean; selectionsCompleted: number; selection: { id: string; stage: 'initial' | 'last16'; tier: Tier; pendingSeats: number[]; deadline: number | null } | null; collateral: { id: string; pendingSeats: number[]; deadline: number | null } | null }
+export interface RoundView { number: number; phase: RoundPhase; turn: number; dealer: number; wallRemaining: number; players: RoundPlayerView[]; pending: { seat: number; tile: TileType; robKong: boolean } | null; payments: Payment[]; events: TableEvent[]; endReason: 'three_winners' | 'wall_empty' | null; nextDealer: number; bonusTurn: boolean; selectionsCompleted: number; selection: { id: string; stage: 'initial' | 'last32' | 'last16'; tier: Tier; pendingSeats: number[]; deadline: number | null } | null; collateral: { id: string; pendingSeats: number[]; deadline: number | null } | null }
 export interface LegalMoves { decisionId: string; declarations: Suit[]; discardIds: string[]; kongIds: string[]; canWin: boolean; claims: Claim[]; cardOffers: CardId[]; canChooseCollateral: boolean }
 export interface PrivateTable { seat: number; hand: Tile[]; drawnId: string | null; concealedKongs: { meldIndex: number; tile: TileType }[]; legal: LegalMoves }
 export interface TableSnapshot { room: PublicRoom; round: RoundView | null; you: PrivateTable }

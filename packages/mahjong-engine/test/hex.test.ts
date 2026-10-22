@@ -304,3 +304,67 @@ describe('revised cards', () => {
   expect(applyWallCard('radiant-echo',[],wall,rng(0),id).inserted).toBe(0);
  });
 });
+
+ describe('configurable Hex selection counts', () => {
+  it.each([1, 2, 3] as const)('runs each configured threshold exactly once with %i selections', selectionCount => {
+   const game = new MahjongRound({ hands: [full(), wait(), wait(), wait()], wall: d('9'.repeat(35)), dealer: 0, cap: 8, hex: { rng: rng(0), id, selectionCount } });
+   declare(game);
+   const stages: string[] = [];
+   let steps = 0;
+   while (game.phase !== 'settled' && steps++ < 300) {
+    if (game.phase === 'card_selection') {
+     const stage = game.publicView().selection!.stage;
+     stages.push(stage);
+     if (stage === 'last32') expect(game.wall.length).toBeLessThanOrEqual(32);
+     if (stage === 'last16') expect(game.wall.length).toBeLessThanOrEqual(16);
+     for (let seat = 0; seat < 4; seat++) {
+      const offers = game.legal(seat).cardOffers;
+      if (offers.length) act(game, seat, { type: 'choose_card', cardId: offers.find(c => c !== 'bathroom-break')! });
+     }
+    } else if (game.phase === 'discard') discard(game, game.turn);
+    else pass(game);
+   }
+   expect(game.phase).toBe('settled');
+   expect(stages).toEqual(selectionCount === 1 ? ['initial'] : selectionCount === 2 ? ['initial', 'last16'] : ['initial', 'last32', 'last16']);
+   expect(game.publicView().selectionsCompleted).toBe(selectionCount);
+  });
+ });
+
+describe('Troublemaker', () => {
+ it('copies each player’s own declared missing suit, including retired/Colour Blind hands, without exposing sources', () => {
+  const hands = [[...c('123456789'),...b('123'),...d('55')], [...c('11'),...b('123456789'),...d('55')], [...c('123456789'),...b('123'),...d('5')], [...c('123456789'),...b('123'),...d('5')]];
+  const game = round(hands, c('99999999999999999999'), offerRng('troublemaker'), true);
+  const originalHands = game.players.map(p => p.hand.map(t => t.id));
+  game.players[2]!.cards.push('colour-blind');
+  game.players[2]!.melds.push({kind:'pong',tiles:b('777'),from:1});
+  act(game,0,{type:'declare',suit:'dots'});
+  act(game,1,{type:'declare',suit:'characters'});game.players[1]!.won=true;
+  act(game,2,{type:'declare',suit:'bamboo'});game.players[2]!.exited=true;
+  act(game,3,{type:'declare',suit:'dots'});
+  const originals = new Set([...game.wall,...game.players.flatMap(p=>p.hand)].map(t=>t.id));
+  chooseAll(game,'troublemaker');
+  const copies = game.wall.filter(t=>!originals.has(t.id));
+  expect(copies).toHaveLength(16);expect(new Set(copies.map(t=>t.id)).size).toBe(16);
+  expect(copies.filter(t=>t.type.suit==='characters')).toHaveLength(4);
+  expect(copies.filter(t=>t.type.suit==='bamboo')).toHaveLength(6);
+  expect(copies.filter(t=>t.type.suit==='dots')).toHaveLength(6);
+  expect(game.players.map(p=>p.hand.map(t=>t.id))).toEqual(originalHands);
+  const events=game.publicView().events.filter(e=>e.card==='troublemaker'&&e.effect==='wall_copied');
+  expect(events.map(e=>e.count)).toEqual([8,8]);expect(events.every(e=>e.tile===null)).toBe(true);
+  for(const tile of [...hands.flat(),...copies]) expect(JSON.stringify(game.publicView())).not.toContain(tile.id);
+ });
+ it('uses the current hands after earlier clockwise Loan Construction effects', () => {
+  const game=round([[...c('123456789'),...b('123'),...d('55')], [...c('123456789'),...b('123'),...d('5')], wait(), wait()], b('9'.repeat(20)), offerRng('troublemaker'), true);
+  declare(game);
+  for(let seat=0;seat<4;seat++)act(game,seat,{type:'choose_card',cardId:seat===1?'troublemaker':'loan-construction'});
+  expect(game.players[0]!.hand.some(t=>t.type.suit==='dots')).toBe(false);
+  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='troublemaker').map(e=>e.count)).toEqual([1]);
+ });
+ it('inserts fresh copies at drawable positions and handles an empty source pool', () => {
+  const source=d('11'),wall=b('9');
+  const result=applyWallCard('troublemaker',source,wall,rng(0),id);
+  expect(result.inserted).toBe(2);expect(wall.slice(0,2).map(t=>t.type)).toEqual(source.map(t=>t.type));
+  expect(wall.slice(0,2).every(t=>!source.some(s=>s.id===t.id))).toBe(true);
+  expect(applyWallCard('troublemaker',[],wall,rng(0),id).inserted).toBe(0);
+ });
+});

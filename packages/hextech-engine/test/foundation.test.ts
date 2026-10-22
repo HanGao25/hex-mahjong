@@ -5,13 +5,13 @@ import { selectionOffers, offerCards, rollCritical, dueSelection } from '../src/
 const rng = (n:number):Rng => ({next:()=>n});
 const tile = (id:string):Tile => ({id,type:{suit:'bamboo',rank:1}});
 describe('foundation contracts',()=>{
- it('has seventeen unique cards with the specified tiers',()=>{
+ it('has eighteen unique cards with the specified tiers',()=>{
   expect(CARDS.map(c=>[c.id,c.tier])).toEqual([
    ['bathroom-break','silver'],['loan-construction','gold'],['fan-the-flames','gold'],
    ['cheat','silver'],['machine-malfunction','silver'],['point-pong-kong','silver'],
    ['double-wield','prismatic'],['collateral-damage','gold'],['colour-blind','gold'],
-   ['jeweled-gauntlet','gold'],['blood-river','prismatic'],['echo','gold'],['great-wall','silver'],['petty-theft','silver'],['sneaky-theft','gold'],['grand-theft','prismatic'],['radiant-echo','prismatic']]);
-  expect(new Set(CARDS.map(c=>c.id)).size).toBe(17);
+   ['jeweled-gauntlet','gold'],['blood-river','prismatic'],['echo','gold'],['great-wall','silver'],['petty-theft','silver'],['sneaky-theft','gold'],['grand-theft','prismatic'],['radiant-echo','prismatic'],['troublemaker','gold']]);
+  expect(new Set(CARDS.map(c=>c.id)).size).toBe(18);
  });
  it('accepts only specified settings',()=>{
   for(const scoreCap of SCORE_CAPS)for(const rounds of [8,16]) expect(parseSettings({scoreCap,rounds})).toEqual({scoreCap,rounds});

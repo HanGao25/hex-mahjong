@@ -2,25 +2,39 @@
 
 Edit source on the Mac. GitHub transfers source; it does not deploy automatically.
 
-## Mac: publish a checked source release
+## Mac: one-command release
 
-From the hex-mahjong folder, commit the intended changes first:
+From the Mac terminal, run this from any directory:
 
 ```sh
-git add <the-files-you-changed>
-git commit -m "Describe the game update"
-pnpm release
+"/Users/hangao/Desktop/myweb/hex-mahjong/Update Hex Mahjong.command"
 ```
 
-`release` requires a clean source repository, installs the locked dependencies, builds,
-typechecks, runs tests, generates the static website build, and pushes the current
-commit to origin/main. A failed step stops the release. Do not use it on an experimental
-branch you do not intend to release. It does not create commits for you.
+Optionally add a commit message as one quoted argument. From a terminal with pnpm
+available, `pnpm release` in the source folder does the same work.
 
-Upload the entire sibling `hex-mahjong-play/` folder using the physics website's
-normal publishing process. Upload the parent `games.html` if it changed. The website
-files belong to the surrounding website workspace; they are not in this source repo.
-The website's bot game runs independently of the Windows server.
+The launcher uses this Mac's portable Node/pnpm installation when available;
+otherwise it uses pnpm on PATH. If temporary tooling has been removed, install
+Node 22 and pnpm 10.18.3 before retrying.
+
+The release requires the main branch and stops on merge conflicts. It installs
+locked dependencies, builds, typechecks, tests, and generates the static bot game.
+After those checks pass it stages ALL non-ignored changes in the Hex Mahjong
+repository, including new files and deletions, commits them if needed, and pushes
+main to GitHub. Keep unrelated or unfinished game changes out of a release.
+
+It then runs rsync to upload only the complete sibling `hex-mahjong-play/` folder
+to `hgao@calys.physics.mcgill.ca:~/WWW/hex-mahjong-play/`. Deletion is limited to
+that remote bot-game directory. SSH may ask for your password. The university's
+public website may take up to six hours to refresh.
+
+The surrounding website, including `games.html`, is not uploaded by this command.
+The bot game works independently of the Windows server. Update Windows separately
+as described below.
+
+If a check fails, no commit, push, or upload is attempted. If push fails, the local
+commit remains. If rsync fails, GitHub may already be updated and the upload may
+be partial; fix the error and rerun the same command. There is no automatic rollback.
 
 ## Windows: initial setup for these commands
 
@@ -68,5 +82,4 @@ Both commands use port 2567. Restarting the game server destroys current rooms.
 The tunnel must stay running and Windows must stay awake.
 
 Scripts have been checked on macOS; verify their first run on Windows before
-relying on them for unattended hosting. Website upload and Windows startup are
-still manual.
+relying on them for unattended hosting. Windows startup remains manual.

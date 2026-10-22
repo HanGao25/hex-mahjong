@@ -1,6 +1,6 @@
 # Delegated rule defaults
 
-These are engineer-selected working rules under the owner's instruction to make reasonable, entertaining decisions independently. They are reversible design choices, not additional owner answers, except for the explicitly owner-confirmed Double Wield and Blood River corrections below. Confirmed base rules in GAME_RULES.md take precedence; explicit card exceptions below override only their named base behavior. All seventeen card effects and selection/settlement policies below are implemented. Some extended multiplayer policies remain future work as noted below; see LOCAL_PLAYTEST.md for current capabilities.
+These are engineer-selected working rules under the owner's instruction to make reasonable, entertaining decisions independently. They are reversible design choices, not additional owner answers, except for the explicitly owner-confirmed Double Wield and Blood River corrections below. Confirmed base rules in GAME_RULES.md take precedence; explicit card exceptions below override only their named base behavior. All eighteen card effects and selection/settlement policies below are implemented. Some extended multiplayer policies remain future work as noted below; see LOCAL_PLAYTEST.md for current capabilities.
 
 The complete current catalogue, including Bathroom Break, Loan Construction and Fan the Flames, is maintained in [HEX_CARD_RULES.md](HEX_CARD_RULES.md). Its new-card exceptions extend the defaults below.
 
@@ -26,7 +26,7 @@ The complete current catalogue, including Bathroom Break, Loan Construction and 
 
 ## Card-specific decisions
 
-The seventeen names, IDs, tiers and bilingual core descriptions remain in the typed CARDS catalogue. These are execution policies supplementing that single catalogue, not a second list of cards.
+The eighteen names, IDs, tiers and bilingual core descriptions remain in the typed CARDS catalogue. These are execution policies supplementing that single catalogue, not a second list of cards.
 
 ### Next-draw substitution (Cheat)
 

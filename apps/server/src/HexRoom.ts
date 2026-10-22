@@ -28,7 +28,7 @@ export class HexRoom extends Room {
   private botTimer: { clear(): void } | null = null;
   private readonly actions = new Map<string, { since: number; count: number }>();
   protected buildRound(dealer: number, number = 1, balances = [0, 0, 0, 0]): MahjongRound {
-    return createRound(serverRng, randomUUID, dealer, this.snapshot.settings.scoreCap, number, balances, true);
+    return createRound(serverRng, randomUUID, dealer, this.snapshot.settings.scoreCap, number, balances, true, this.snapshot.settings.hexSelections ?? 2);
   }
   async onCreate(options: unknown) {
     const settings = parseSettings(options);

@@ -1,4 +1,4 @@
-import type { Tile, Rng, ScoreCap, Suit, Move, Claim, LegalMoves, RoundView, PrivateTable, Payment, TableEvent, Pattern, CardId } from '@hex/shared';
+import type { Tile, Rng, ScoreCap, Suit, Move, Claim, LegalMoves, RoundView, PrivateTable, Payment, TableEvent, Pattern, CardId, HexSelectionCount } from '@hex/shared';
 import { randomIndex } from '@hex/shared';
 import { selectionOffers, rollCritical, applyWallCard, copyInstance } from '@hex/hextech-engine';
 import { shuffle } from './random.js';
@@ -7,17 +7,17 @@ export interface Player { hand: Tile[]; melds: Meld[]; discards: Tile[]; missing
 interface Pending { tile: Tile; from: number; robKong: boolean; afterKong: boolean; meldIndex: number; allowBonus: boolean; options: Map<number, Claim[]>; replies: Map<number, Claim> }
 interface DrawTask { kind: 'draw'; seat: number; replacement: boolean; bonus: boolean }
 type Resume = DrawTask | { kind: 'initial' };
-interface Selection { stage: 'initial' | 'last16'; tier: 'silver' | 'gold' | 'prismatic'; offers: Map<number, readonly [CardId, CardId]>; choices: Map<number, CardId>; resume: Resume }
+interface Selection { stage: 'initial' | 'last32' | 'last16'; tier: 'silver' | 'gold' | 'prismatic'; offers: Map<number, readonly [CardId, CardId]>; choices: Map<number, CardId>; resume: Resume }
 interface Settlement { pending: Pending; winners: number[]; scores: Map<number, WinScore>; active: number[]; choices: Map<number, boolean>; eligible: number[] }
-export interface HexRuntime { rng: Rng; id: () => string; selections?: boolean }
+export interface HexRuntime { rng: Rng; id: () => string; selections?: boolean; selectionCount?: HexSelectionCount }
 export interface RoundInput { hands: Tile[][]; wall: Tile[]; dealer: number; cap: ScoreCap; number?: number; balances?: number[]; hex?: HexRuntime }
-export function createRound(rng: Rng, id: () => string, dealer: number, cap: ScoreCap, number = 1, balances: number[] = [0, 0, 0, 0], enableHex = false): MahjongRound {
+export function createRound(rng: Rng, id: () => string, dealer: number, cap: ScoreCap, number = 1, balances: number[] = [0, 0, 0, 0], enableHex = false, selectionCount: HexSelectionCount = 2): MahjongRound {
   const tiles: Tile[] = [];
   for (let i = 0; i < 27; i++) for (let copy = 0; copy < 4; copy++) tiles.push({ id: id(), type: fromIndex(i) });
   const deck = shuffle(tiles, rng), hands: Tile[][] = [[], [], [], []];
   for (let n = 0; n < 13; n++) for (let offset = 0; offset < 4; offset++) hands[(dealer + offset) % 4]!.push(deck.shift()!);
   hands[dealer]!.push(deck.shift()!);
-  return new MahjongRound({ hands, wall: deck, dealer, cap, number, balances, ...(enableHex ? { hex: { rng, id } } : {}) });
+  return new MahjongRound({ hands, wall: deck, dealer, cap, number, balances, ...(enableHex ? { hex: { rng, id, selectionCount } } : {}) });
 }
 export class MahjongRound {
   readonly players: Player[];
@@ -40,6 +40,7 @@ export class MahjongRound {
   private settlement: Settlement | null = null;
   private initialDone = false;
   private last16Done = false;
+  private last32Done = false;
   private selectionsCompleted = 0;
   private readonly hex: HexRuntime | null;
   private readonly knownIds: Set<string>;
@@ -95,7 +96,7 @@ export class MahjongRound {
   }
   private minimumFan() { return this.players.some(p => p.cards.includes('fan-the-flames')) ? 2 : 0; }
   private beginSelection(stage: Selection['stage'], resume: Resume) {
-    if (stage === 'initial') this.initialDone = true; else this.last16Done = true;
+    if (stage === 'initial') this.initialDone = true; else if (stage === 'last32') this.last32Done = true; else this.last16Done = true;
     const seats = this.active();
     const result = selectionOffers(seats.map(seat => this.players[seat]!.cards), this.hex!.rng, stage);
     if (!result) { this.selectionsCompleted++; this.logHex('selection_skipped', this.dealer); this.resume(resume); return; }
@@ -124,10 +125,13 @@ export class MahjongRound {
         this.logHex('hand_refilled', seat, card, returned.length);
       }
       if (card === 'cheat') p.cheatArmed = true;
-      const result = applyWallCard(card, [...p.hand, ...p.melds.flatMap(m => m.tiles)], this.wall, this.hex!.rng, () => this.freshId());
+      const sources = card === 'troublemaker'
+        ? this.players.flatMap(player => player.hand.filter(tile => tile.type.suit === player.missing))
+        : [...p.hand, ...p.melds.flatMap(m => m.tiles)];
+      const result = applyWallCard(card, sources, this.wall, this.hex!.rng, () => this.freshId());
       this.removed.push(...result.removed);
       if (card === 'machine-malfunction') this.logHex('wall_removed', seat, card, result.removed.length);
-      if (card === 'echo' || card === 'radiant-echo') this.logHex('wall_copied', seat, card, result.inserted);
+      if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker') this.logHex('wall_copied', seat, card, result.inserted);
     }
     this.selectionsCompleted++; this.selection = null;
     if (this.active().length < 2) this.finish('three_winners'); else this.resume(selection.resume);
@@ -295,7 +299,8 @@ export class MahjongRound {
   private replacement(seat: number) { this.draw({ kind: 'draw', seat, replacement: true, bonus: this.bonusTurn }); }
   private draw(task: DrawTask) {
     if (!this.wall.length) { this.finish('wall_empty'); return; }
-    if (this.hex && this.hex.selections !== false && !this.last16Done && this.wall.length <= 16) { this.beginSelection('last16', task); return; }
+    if (this.hex && this.hex.selections !== false && this.hex.selectionCount === 3 && !this.last32Done && this.wall.length <= 32) { this.beginSelection('last32', task); return; }
+    if (this.hex && this.hex.selections !== false && (this.hex.selectionCount ?? 2) >= 2 && !this.last16Done && this.wall.length <= 16) { this.beginSelection('last16', task); return; }
     if (this.players[task.seat]!.exited) { this.advance(task.seat); return; }
     const p = this.players[task.seat]!;
     let tile: Tile;

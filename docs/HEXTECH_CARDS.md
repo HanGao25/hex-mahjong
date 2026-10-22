@@ -1,8 +1,8 @@
 # Hex cards
 
-See [the complete card rules](HEX_CARD_RULES.md) for all seventeen cards, selection-stage restrictions and interaction details. Read and update that document when refining cards.
+See [the complete card rules](HEX_CARD_RULES.md) for all eighteen cards, selection-stage restrictions and interaction details. Read and update that document when refining cards.
 
-All seventeen cards are implemented. The single source for identifiers, tiers, bilingual names/descriptions, trigger metadata and implementation status is [`CARDS`](../packages/shared/src/index.ts). The frontend renders that catalogue directly; it does not keep a second card list.
+All eighteen cards are implemented. The single source for identifiers, tiers, bilingual names/descriptions, trigger metadata and implementation status is [`CARDS`](../packages/shared/src/index.ts). The frontend renders that catalogue directly; it does not keep a second card list.
 
 [Rule defaults](RULE_DEFAULTS.md) specify the full effect policy. [Local playtest](LOCAL_PLAYTEST.md) explains the choices and indicators. Source ownership:
 

@@ -1,14 +1,14 @@
 import { CARDS, randomIndex, type CardId, type Rng, type Tier, type Tile, type Card } from '@hex/shared';
-function eligible(tier: Tier, selected: readonly CardId[], stage: 'initial' | 'last16') {
+function eligible(tier: Tier, selected: readonly CardId[], stage: 'initial' | 'last32' | 'last16') {
   return CARDS.filter((c: Card) => c.tier === tier && !selected.includes(c.id) && (!c.selectionStage || c.selectionStage === stage)).map(c => c.id);
 }
-export function offerCards(tier: Tier, selected: readonly CardId[], rng: Rng, stage: 'initial' | 'last16' = 'initial'): readonly [CardId, CardId] {
+export function offerCards(tier: Tier, selected: readonly CardId[], rng: Rng, stage: 'initial' | 'last32' | 'last16' = 'initial'): readonly [CardId, CardId] {
   const pool = eligible(tier, selected, stage);
   if (pool.length < 2) throw new Error('INSUFFICIENT_ELIGIBLE_CARDS');
   const first = pool.splice(randomIndex(pool.length, rng), 1)[0]!;
   return [first, pool[randomIndex(pool.length, rng)]!];
 }
-export function selectionOffers(owned: readonly (readonly CardId[])[], rng: Rng, stage: 'initial' | 'last16' = 'initial') {
+export function selectionOffers(owned: readonly (readonly CardId[])[], rng: Rng, stage: 'initial' | 'last32' | 'last16' = 'initial') {
   const tiers = (['silver', 'gold', 'prismatic'] as const).filter(tier => owned.every(cards => eligible(tier, cards, stage).length >= 2));
   if (!tiers.length) return null;
   const tier = tiers[randomIndex(tiers.length, rng)]!;
@@ -31,8 +31,8 @@ export function applyWallCard(card: CardId, sources: readonly Tile[], wall: Tile
     for (let n = 0; n < 2 && wall.length; n++) removed.push(wall.splice(randomIndex(wall.length, rng), 1)[0]!);
     return { removed, inserted: 0 };
   }
-  if (card === 'echo' || card === 'radiant-echo') {
-    const selected = card === 'radiant-echo' ? (sources.length ? Array.from({ length: 5 }, () => sources[randomIndex(sources.length, rng)]!) : []) : sampleTiles(sources, 3, rng);
+  if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker') {
+    const selected = card === 'troublemaker' ? [...sources] : card === 'radiant-echo' ? (sources.length ? Array.from({ length: 5 }, () => sources[randomIndex(sources.length, rng)]!) : []) : sampleTiles(sources, 3, rng);
     const copies = selected.map(tile => copyInstance(tile, id));
     for (const tile of copies) wall.splice(randomIndex(wall.length + 1, rng), 0, tile);
     return { removed: [], inserted: copies.length };

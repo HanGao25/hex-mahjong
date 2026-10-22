@@ -57,14 +57,26 @@ async function clean() {
 }
 try {
   if (mode === 'release') {
-    await clean();
+    const { execFileSync } = await import('node:child_process');
+    const gitOutput = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    if (gitOutput('branch', '--show-current') !== 'main') throw Error('Switch to main before releasing.');
+    if (gitOutput('diff', '--name-only', '--diff-filter=U')) throw Error('Resolve merge conflicts before releasing.');
+    console.log('This release includes all non-ignored changes inside the Hex Mahjong repository:');
+    await run('git', ['status', '--short']);
     await pnpm('install', '--frozen-lockfile');
     await pnpm('build');
     await pnpm('typecheck');
     await pnpm('test');
     await pnpm('build:static');
+    await run('git', ['add', '--all']);
+    if (gitOutput('diff', '--cached', '--name-only')) {
+      await run('git', ['commit', '-m', process.argv[3] || `Update Hex Mahjong ${new Date().toISOString()}`]);
+    }
     await run('git', ['push', 'origin', 'HEAD:main']);
-    console.log('Source pushed. Upload the complete ../hex-mahjong-play folder to the physics website (and games.html if changed).');
+    console.log('GitHub updated. Uploading the standalone bot game to the physics website...');
+    await run('rsync', ['-av', '--delete', fileURLToPath(new URL('../../hex-mahjong-play/', import.meta.url)),
+      'hgao@calys.physics.mcgill.ca:~/WWW/hex-mahjong-play/']);
+    console.log('Release complete: GitHub and the website bot-game files are updated.\nThe physics website may take up to six hours to refresh.\nOn Windows, stop the game server (keep the tunnel running), then run pnpm.cmd update:server.\nChanges to the surrounding website, including games.html, are published separately.');
   } else if (mode === 'host' || mode === 'update') {
     const publicUrl = validate(process.argv[3] ?? (await settings()).publicUrl);
     await requireStopped();

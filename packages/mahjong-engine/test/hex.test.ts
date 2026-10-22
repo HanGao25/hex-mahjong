@@ -278,6 +278,7 @@ describe('revised cards', () => {
   discard(game,0);expect(game.turn).toBe(0);expect(game.bonusTurn).toBe(false);
   discard(game,0,game.players[0]!.drawnId!);expect(game.turn).toBe(0);
   expect(game.events.filter(e=>e.effect==='turn_restarted')).toHaveLength(2);
+  expect(game.publicView().players[0]!.cardStats?.[card]).toBe(2);
   value=chance;discard(game,0,game.players[0]!.drawnId!);expect(game.turn).toBe(1);
  });
  it('a successful pong interrupts even a guaranteed theft roll', () => {
@@ -296,6 +297,7 @@ describe('revised cards', () => {
   other.players[0]!.cards.push('great-wall');other.players[1]!.cards.push('point-pong-kong');declare(other);
   act(other,0,{type:'discard',tileId:offered.id});act(other,1,{type:'claim',claim:'pong'});pass(other);
   expect(other.payments.filter(p=>p.reason==='pong_card')).toEqual([]);
+  expect(other.publicView().players[0]!.cardStats?.['great-wall']).toBe(1);
  });
  it('Radiant Echo samples with replacement and creates five unique drawable copies', () => {
   const source=b('1'),wall:Tile[]=[];
@@ -442,6 +444,7 @@ describe('new and adjusted card effects', () => {
   expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([1]);
   act(game,0,{type:'win'});
   expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual(roll<.5?[1,1]:[1]);
+  expect(game.publicView().players[1]!.cardStats?.['hard-work']).toBe(roll<.5?2:1);
   expect(game.wall).toHaveLength(roll<.5?31:30); // Acquisition + possible reaction - next draw.
  });
  it('Fan the Flames stacks across retired owners but never changes readiness or kong refunds', () => {
@@ -451,4 +454,20 @@ describe('new and adjusted card effects', () => {
   expect(game.phase).toBe('settled');
   expect(game.payments.some(p=>p.reason==='not_ready'&&p.to===1&&p.fan===0)).toBe(true);
  });
+ it('publishes persistent statistics, detached snapshots and stacked thresholds without hidden tiles', () => {
+  const game=round(undefined, d('99999999999999999999'), rng(0));
+  game.players[0]!.cards.push('grand-theft','fan-the-flames','jeweled-gauntlet');
+  game.players[1]!.cards.push('fan-the-flames');
+  declare(game); discard(game,0);
+  for(let i=0;i<110;i++) game.events.push({id:game.events.length+1,kind:'draw',seat:0,tile:null});
+  const view=game.publicView(), stats=view.players[0]!.cardStatistics!;
+  expect(view.events.some(e=>e.effect==='turn_restarted')).toBe(false);
+  expect(stats['grand-theft']!.total).toBe(1);
+  expect(stats['fan-the-flames']!.threshold).toBe(2);
+  stats['grand-theft']!.total=999;
+  expect(game.publicView().players[0]!.cardStatistics!['grand-theft']!.total).toBe(1);
+  game.players[1]!.exited=true;
+  expect(game.publicView().players[0]!.cardStatistics!['fan-the-flames']!.threshold).toBe(2);
+ });
+
 });

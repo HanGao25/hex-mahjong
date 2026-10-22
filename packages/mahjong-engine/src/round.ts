@@ -26,6 +26,15 @@ export class MahjongRound {
   readonly events: TableEvent[] = [];
   readonly resolved: Tile[] = [];
   readonly removed: Tile[] = [];
+  private readonly cardMetrics: Partial<Record<CardId, Record<string, number>>>[] = [{}, {}, {}, {}];
+  private metric(seat: number, card: CardId, key: string, amount = 1) {
+    const metrics = this.cardMetrics[seat]![card] ??= {};
+    metrics[key] = (metrics[key] ?? 0) + amount;
+  }
+  private readonly cardStats: Partial<Record<CardId, number>>[] = [{}, {}, {}, {}];
+  private addCardStat(seat: number, card: CardId, count: number) {
+    const stats = this.cardStats[seat]!; stats[card] = (stats[card] ?? 0) + count;
+  }
   private readonly winningTiles: Tile['type'][][] = [[], [], [], []];
   readonly dealer: number;
   readonly number: number;
@@ -69,6 +78,8 @@ export class MahjongRound {
   private missing(seat: number): Suit | null { return this.has(seat, 'colour-blind') ? null : this.players[seat]!.missing; }
   private log(kind: TableEvent['kind'], seat: number, tile: Tile['type'] | null = null) { this.events.push({ id: this.events.length + 1, kind, seat, tile }); }
   private logHex(effect: NonNullable<TableEvent['effect']>, seat: number, card?: CardId, count?: number) {
+    if (card && (effect === 'wall_copied' || effect === 'wall_removed' || effect === 'hand_refilled')) this.addCardStat(seat, card, count ?? 0);
+    if (card && (effect === 'turn_restarted' || effect === 'extra_turn')) this.addCardStat(seat, card, 1);
     this.events.push({ id: this.events.length + 1, kind: 'hex', seat, tile: null, effect, ...(card ? { card } : {}), ...(count !== undefined ? { count } : {}) });
   }
   private active(): number[] { return this.players.flatMap((p, i) => (p.won || p.exited) ? [] : [i]); }
@@ -76,7 +87,10 @@ export class MahjongRound {
   private transfer(from: number, to: number, amount: number, reason: Payment['reason'], fan = 0, patterns: Pattern[] = [], critical = false) {
     if (!Number.isSafeInteger(amount) || amount < 0 || from === to) throw Error('INVALID_PAYMENT');
     if (this.players[from]!.exited || this.players[to]!.exited) return 0;
-    if (this.has(from, 'great-wall')) amount = Math.max(0, amount - 1);
+    if (this.has(from, 'great-wall')) {
+      this.addCardStat(from, 'great-wall', Math.min(amount, 1));
+      amount = Math.max(0, amount - 1);
+    }
     if (!amount) return 0;
     this.players[from]!.score -= amount; this.players[to]!.score += amount;
     this.payments.push({ id: this.payments.length + 1, from, to, amount, reason, fan, patterns, critical });
@@ -84,6 +98,8 @@ export class MahjongRound {
   }
   private critical(seat: number): boolean {
     const crit = !!this.hex && this.has(seat, 'jeweled-gauntlet') && rollCritical(this.hex.rng);
+    if (this.has(seat, 'jeweled-gauntlet')) this.metric(seat, 'jeweled-gauntlet', 'rolls');
+    if (crit) this.metric(seat, 'jeweled-gauntlet', 'criticals');
     if (crit) this.logHex('critical', seat, 'jeweled-gauntlet', 2);
     return crit;
   }
@@ -213,6 +229,7 @@ export class MahjongRound {
   private completeWin(seat: number, selfDraw: boolean, tile: Tile['type']) {
     this.winningTiles[seat]!.push({ ...tile });
     const p = this.players[seat]!; p.winCount++;
+    if (this.has(seat, 'colour-blind')) this.metric(seat, 'colour-blind', 'wins');
     if (this.has(seat, 'blood-river')) {
       if (!p.handLocked) { p.handLocked = true; this.logHex('hand_locked', seat, 'blood-river'); }
       if (selfDraw) {
@@ -276,8 +293,8 @@ export class MahjongRound {
       if (kind === 'kong') { this.startTurn(seat); this.payKong(seat, [q.from], 2); this.replacement(seat); }
       else {
         this.startTurn(seat);
-        if (this.has(seat, 'point-pong-kong')) { this.transfer(q.from, seat, 1, 'pong_card'); this.armTorment(seat, [q.from]); }
-        if (this.has(q.from, 'willing-victim')) this.transfer(seat, q.from, 1, 'willing_victim');
+        if (this.has(seat, 'point-pong-kong')) { this.metric(seat, 'point-pong-kong', 'triggers'); this.transfer(q.from, seat, 1, 'pong_card'); this.armTorment(seat, [q.from]); }
+        if (this.has(q.from, 'willing-victim')) { this.metric(q.from, 'willing-victim', 'triggers'); this.transfer(seat, q.from, 1, 'willing_victim'); }
         this.opponentSuccess([seat]);
         this.change('discard', seat);
       }
@@ -351,7 +368,7 @@ export class MahjongRound {
     const previous = this.precision.get(owner);
     const state = { suit: tile.type.suit, triggers: previous?.triggers ?? 0 };
     if (previous?.suit === tile.type.suit && state.triggers < 2) {
-      state.triggers++;
+      state.triggers++; this.metric(owner, 'precision-strike', 'triggers');
       const payers = this.active().filter(seat => seat !== owner);
       for (const payer of payers) this.transfer(payer, owner, 1, 'precision_strike');
     }
@@ -400,11 +417,32 @@ export class MahjongRound {
     }
     this.change('settled'); this.log('settled', this.turn);
   }
+  private statistics(seat: number): Partial<Record<CardId, Record<string, number>>> {
+    const p = this.players[seat]!;
+    const result: Partial<Record<CardId, Record<string, number>>> = {};
+    const reasons = { 'precision-strike': 'precision_strike', 'point-pong-kong': 'pong_card', 'willing-victim': 'willing_victim', 'liandrys-torment': 'torment', 'collateral-damage': 'collateral' } as const;
+    for (const card of p.cards) {
+      const values: Record<string, number> = result[card] = { total: this.cardStats[seat]![card] ?? 0, ...this.cardMetrics[seat]![card] };
+      if (card in reasons) {
+        const reason = reasons[card as keyof typeof reasons];
+        values.points = this.payments.filter(e => e.to === seat && e.reason === reason).reduce((sum, e) => sum + e.amount, 0);
+      }
+      if (card === 'precision-strike') values.remaining = 2 - (values.triggers ?? 0);
+      if (card === 'cheat') values.armed = Number(p.cheatArmed);
+      if (card === 'no-more') values.armed = Number(this.noMoreArmed.has(seat));
+      if (card === 'bathroom-break') values.exited = Number(p.exited);
+      if (card === 'blood-river') { values.wins = p.winCount; values.locked = Number(p.handLocked && !p.exited && this.phase !== 'settled'); }
+      if (card === 'fan-the-flames') values.threshold = this.minimumFan();
+      if (card === 'liandrys-torment') values.pending = this.active().includes(seat)
+        ? this.torments.filter(t => t.owner === seat).reduce((sum, t) => sum + t.remaining * t.payers.filter(payer => this.active().includes(payer)).length, 0) : 0;
+    }
+    return result;
+  }
   publicView(): RoundView {
     return { number: this.number, phase: this.phase, turn: this.turn, dealer: this.dealer, wallRemaining: this.wall.length, bonusTurn: this.bonusTurn, selectionsCompleted: this.selectionsCompleted,
       selection: this.selection ? { id: `${this.number}:${this.seq}`, stage: this.selection.stage, tier: this.selection.tier, pendingSeats: [...this.selection.offers.keys()].filter(i => !this.selection!.choices.has(i)), deadline: null } : null,
       collateral: this.settlement ? { id: `${this.number}:${this.seq}`, pendingSeats: this.settlement.eligible.filter(i => !this.settlement!.choices.has(i)), deadline: null } : null,
-      players: this.players.map((p, seat) => ({ seat, winningTiles: this.winningTiles[seat]!.map(tile => ({ ...tile })), missingSuit: p.missing, handCount: p.hand.length, revealedHand: this.phase === 'settled' ? p.hand.map(t => ({ ...t.type })) : null, won: p.won, exited: p.exited, score: p.score, cards: [...p.cards], winCount: p.winCount, handLocked: p.handLocked,
+      players: this.players.map((p, seat) => ({ seat, cardStats: { ...this.cardStats[seat] }, cardStatistics: this.statistics(seat), winningTiles: this.winningTiles[seat]!.map(tile => ({ ...tile })), missingSuit: p.missing, handCount: p.hand.length, revealedHand: this.phase === 'settled' ? p.hand.map(t => ({ ...t.type })) : null, won: p.won, exited: p.exited, score: p.score, cards: [...p.cards], winCount: p.winCount, handLocked: p.handLocked,
         melds: p.melds.map(m => ({ kind: m.kind, tiles: m.kind === 'concealed_kong' && this.phase !== 'settled' ? [] : m.tiles.map(t => ({ ...t.type })) })), discards: p.discards.map(t => ({ ...t.type })) })),
       pending: this.pending ? { seat: this.pending.from, tile: { ...this.pending.tile.type }, robKong: this.pending.robKong } : null,
       payments: this.payments.map(p => ({ ...p, patterns: p.patterns.map(pattern => ({ ...pattern })) })), events: this.events.slice(-100).map(e => ({ ...e, tile: e.tile ? { ...e.tile } : null })), endReason: this.endReason, nextDealer: this.nextDealer };

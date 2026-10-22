@@ -68,3 +68,5 @@ button.hex-tag{cursor:help;line-height:1.4;text-align:left;touch-action:manipula
 .player .meld-row{height:44px;min-height:44px;flex-shrink:0;overflow-y:auto;align-content:flex-start;align-items:flex-start;margin:5px 0 0;padding-bottom:4px;scrollbar-width:thin}
 .player:not(.south) .discards{order:0}
 @media(max-width:700px){.player .discards{height:42px;min-height:42px}.player .meld-row{height:42px;min-height:42px}}
+
+.hex-card-statistics{border-top:1px solid #ffffff30;margin-top:10px;padding-top:8px}.hex-card-statistics small{color:#ecd7a3}.hex-card-statistics dl{margin:0}.hex-card-statistics dl>div{display:flex;justify-content:space-between;gap:14px;padding-top:4px}.hex-card-statistics dt{color:#d5dfd6}.hex-card-statistics dd{margin:0;font-weight:700;color:#ecd7a3;font-variant-numeric:tabular-nums}

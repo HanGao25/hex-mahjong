@@ -435,13 +435,14 @@ describe('new and adjusted card effects', () => {
   expect(game.wall.filter(t=>t.type.suit==='characters'&&t.type.rank===1)).toHaveLength(hasEligible?0:2);
   expect(game.publicView().events.filter(e=>e.card==='machine-wrath'&&e.effect==='wall_removed')).toEqual([expect.objectContaining({seat:0,tile:null,count:hasEligible?2:0})]);
  });
- it('Hard Work copies only concealed sources on acquisition and reacts once to another player’s win', () => {
-  const game=round(undefined,d('9'.repeat(30)),offerRng('hard-work'),true);declare(game);
+ it.each([.499999,.5])('Hard Work copies one tile on acquisition and respects its 50 percent boundary (%s)', roll => {
+  const offers=offerRng('hard-work');let calls=0;
+  const game=round(undefined,d('9'.repeat(30)),{next:()=>++calls<=9?offers.next():roll},true);declare(game);
   for(let seat=0;seat<4;seat++)act(game,seat,{type:'choose_card',cardId:seat===1?'hard-work':'double-wield'});
-  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([2]);
+  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([1]);
   act(game,0,{type:'win'});
-  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([2,1]);
-  expect(game.wall).toHaveLength(32); // 30 + 3 copies - next ordinary draw.
+  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual(roll<.5?[1,1]:[1]);
+  expect(game.wall).toHaveLength(roll<.5?31:30); // Acquisition + possible reaction - next draw.
  });
  it('Fan the Flames stacks across retired owners but never changes readiness or kong refunds', () => {
   const hand=[...c('11112346789'),...b('126')],game=round([hand,wait(),wait(),wait()],b('9'));

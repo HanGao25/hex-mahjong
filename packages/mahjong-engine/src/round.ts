@@ -329,6 +329,7 @@ export class MahjongRound {
   private opponentSuccess(actors: readonly number[]) {
     if (!this.hex) return;
     for (const actor of actors) for (const owner of this.active()) if (owner !== actor && this.has(owner, 'hard-work')) {
+      if (randomIndex(1000000, this.hex.rng) >= 500000) continue;
       const source = sampleTiles(this.players[owner]!.hand, 1, this.hex.rng);
       const copies = source.map(tile => copyInstance(tile, () => this.freshId()));
       for (const tile of copies) this.wall.splice(randomIndex(this.wall.length + 1, this.hex.rng), 0, tile);

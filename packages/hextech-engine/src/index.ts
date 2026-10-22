@@ -31,8 +31,8 @@ export function applyWallCard(card: CardId, sources: readonly Tile[], wall: Tile
     for (let n = 0; n < 2 && wall.length; n++) removed.push(wall.splice(randomIndex(wall.length, rng), 1)[0]!);
     return { removed, inserted: 0 };
   }
-  if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker') {
-    const selected = card === 'troublemaker' ? [...sources] : card === 'radiant-echo' ? (sources.length ? Array.from({ length: 5 }, () => sources[randomIndex(sources.length, rng)]!) : []) : sampleTiles(sources, 3, rng);
+  if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker' || card === 'hard-work') {
+    const selected = card === 'hard-work' ? sampleTiles(sources, 2, rng) : card === 'troublemaker' ? [...sources] : card === 'radiant-echo' ? (sources.length ? Array.from({ length: 5 }, () => sources[randomIndex(sources.length, rng)]!) : []) : sampleTiles(sources, 3, rng);
     const copies = selected.map(tile => copyInstance(tile, id));
     for (const tile of copies) wall.splice(randomIndex(wall.length + 1, rng), 0, tile);
     return { removed: [], inserted: copies.length };

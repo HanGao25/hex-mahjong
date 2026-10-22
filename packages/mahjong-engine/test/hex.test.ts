@@ -60,10 +60,10 @@ describe('private selection and immediate effects', () => {
   expect(wall).toEqual([]); expect(applyWallCard('machine-malfunction', [], wall, rng(0), id).removed).toEqual([]);
  });
  it('catches a skipped last-16 threshold, pauses before drawing and never repeats after Echo grows the wall', () => {
-  let value = 0;
-  const game = round(undefined, c('99999999999999999'), { next: () => value }, true);
+  let random = rng(0);
+  const game = round(undefined, c('99999999999999999'), { next: () => random.next() }, true);
   declare(game); chooseAll(game, 'machine-malfunction'); expect(game.wall.length).toBe(9);
-  value = .99; discard(game, 0);
+  random = offerRng('radiant-echo', 'last16'); discard(game, 0);
   expect(game.phase).toBe('card_selection'); expect(game.publicView().selection?.stage).toBe('last16'); expect(game.wall.length).toBe(9);
   expect(game.players[1]!.hand.length).toBe(13);
   chooseAll(game, 'radiant-echo'); expect(game.wall.length).toBe(28); expect(game.turn).toBe(1);
@@ -250,9 +250,10 @@ describe('new Hex rules', () => {
   expect(game.phase).toBe('settled'); expect(game.players[1]!.score).toBe(score);
   expect(game.payments.slice(count).some(p=>p.from===1||p.to===1)).toBe(false);
  });
- it('requires two actual fan for every player, including the owner and Double Wield', () => {
+ it('stacks one actual fan per owner, including Double Wield', () => {
   const game=round(); declare(game); expect(game.legal(0).canWin).toBe(true);
-  game.players[0]!.cards.push('fan-the-flames'); expect(game.legal(0).canWin).toBe(false);
+  game.players[0]!.cards.push('fan-the-flames'); expect(game.legal(0).canWin).toBe(true);
+  game.players[1]!.cards.push('fan-the-flames'); expect(game.legal(0).canWin).toBe(false);
   game.players[0]!.cards.push('double-wield'); expect(game.legal(0).canWin).toBe(false);
   const pure=round([c('11123456789999'),wait(),wait(),wait()]); declare(pure);
   pure.players[1]!.cards.push('fan-the-flames'); expect(pure.legal(0).canWin).toBe(true);
@@ -270,7 +271,7 @@ describe('revised cards', () => {
   expect(game.players[0]!.hand.slice(-5).map(t=>t.type.rank)).toEqual([1,2,3,4,5]);
   expect([...game.wall,...game.players.flatMap(p=>p.hand)].map(t=>t.id).sort()).toEqual(ids);
  });
- it.each([['petty-theft',.15],['sneaky-theft',.25],['grand-theft',.45]] as const)('%s respects probability boundaries and can chain', (card,chance) => {
+ it.each([['petty-theft',.15],['sneaky-theft',.25],['grand-theft',.40]] as const)('%s respects probability boundaries and can chain', (card,chance) => {
   let value=chance-.000001;
   const game=round(undefined, d('99999999999999999999'), {next:()=>value});
   game.players[0]!.cards.push(card);declare(game);
@@ -366,5 +367,87 @@ describe('Troublemaker', () => {
   expect(result.inserted).toBe(2);expect(wall.slice(0,2).map(t=>t.type)).toEqual(source.map(t=>t.type));
   expect(wall.slice(0,2).every(t=>!source.some(s=>s.id===t.id))).toBe(true);
   expect(applyWallCard('troublemaker',[],wall,rng(0),id).inserted).toBe(0);
+ });
+});
+
+describe('new and adjusted card effects', () => {
+ const cycleTo = (game: MahjongRound, seat: number) => {
+  let steps=0;
+  while(game.phase!=='settled' && game.turn!==seat && steps++<20) discard(game,game.turn,game.players[game.turn]!.drawnId!);
+  expect(game.turn).toBe(seat);
+ };
+ it('Precision Strike charges each active opponent at most twice and ignores the opening deal', () => {
+  const game=round(undefined,d('9'.repeat(60)));game.players[0]!.cards.push('precision-strike');declare(game);
+  expect(game.payments).toEqual([]);
+  discard(game,0);cycleTo(game,0);expect(game.payments.filter(p=>p.reason==='precision_strike')).toHaveLength(0);
+  for(let n=0;n<3;n++){discard(game,0,game.players[0]!.drawnId!);cycleTo(game,0);}
+  expect(game.payments.filter(p=>p.reason==='precision_strike').map(p=>[p.from,p.to,p.amount])).toEqual([[1,0,1],[2,0,1],[3,0,1],[1,0,1],[2,0,1],[3,0,1]]);
+  expect(game.players.reduce((sum,p)=>sum+p.score,0)).toBe(0);
+ });
+ it('Willing Victim and Point-to-Pong settle both directions only on a successful pong', () => {
+  const offered=c('1')[0]!,game=round([[...c('123456789'),...b('1234'),offered],[...c('11'),...b('12345678912')],wait(),wait()]);
+  game.players[0]!.cards.push('willing-victim');game.players[1]!.cards.push('point-pong-kong');declare(game);
+  act(game,0,{type:'discard',tileId:offered.id});expect(game.payments).toEqual([]);
+  act(game,1,{type:'claim',claim:'pong'});pass(game);
+  expect(game.payments.map(p=>[p.reason,p.from,p.to,p.amount])).toEqual([['pong_card',0,1,1],['willing_victim',1,0,1]]);
+ });
+ it('No More removes every wall instance of only the next discard, preserving physical identities', () => {
+  const game=round(undefined,[...c('111'),...d('9'.repeat(30))],offerRng('no-more'),true);
+  declare(game);chooseAll(game,'no-more');
+  const removed=game.wall.filter(t=>t.type.suit==='characters'&&t.type.rank===1).map(t=>t.id);
+  const tile=game.players[0]!.hand.find(t=>t.type.suit==='characters'&&t.type.rank===1)!;
+  discard(game,0,tile.id);
+  expect(game.removed.map(t=>t.id)).toEqual([...removed].reverse());expect(game.wall.some(t=>t.type.suit==='characters'&&t.type.rank===1)).toBe(false);
+  expect(game.events.filter(e=>e.card==='no-more'&&e.effect==='wall_removed')).toHaveLength(1);
+ });
+ it('Torment ticks on the next two turns, never on the kong replacement draw', () => {
+  const hand=[...c('11112346789'),...b('126')],game=round([hand,wait(),wait(),wait()],d('9'.repeat(60)));
+  game.players[0]!.cards.push('liandrys-torment');declare(game);
+  act(game,0,{type:'kong',tileId:hand[0]!.id});expect(game.payments.filter(p=>p.reason==='torment')).toEqual([]);
+  for(let n=0;n<3;n++){discard(game,0,game.players[0]!.drawnId!);cycleTo(game,0);}
+  expect(game.payments.filter(p=>p.reason==='torment')).toHaveLength(6);
+  expect(game.payments.filter(p=>p.reason==='torment').every(p=>p.amount===1&&!p.critical)).toBe(true);
+ });
+ it('Point-to-Pong arms Torment for the discarder without ticking on that same claim turn', () => {
+  const offered=c('1')[0]!,game=round([[...c('123456789'),...b('1234'),offered],[...c('11'),...b('12345678912')],wait(),wait()],d('9'.repeat(40)));
+  game.players[1]!.cards.push('liandrys-torment','point-pong-kong');declare(game);
+  act(game,0,{type:'discard',tileId:offered.id});act(game,1,{type:'claim',claim:'pong'});pass(game);
+  expect(game.payments.filter(p=>p.reason==='torment')).toEqual([]);
+  discard(game,1);cycleTo(game,1);
+  expect(game.payments.filter(p=>p.reason==='torment').map(p=>[p.from,p.to,p.amount])).toEqual([[0,1,1]]);
+ });
+ it('Machine Wrath excludes its owner and removes one hidden opponent tile type', () => {
+  const offers=offerRng('machine-wrath');let rolls=0;
+  const game=round([full(),b('1234567891235'),wait(),wait()],[...c('11'),...b('55'),...d('9'.repeat(30))],{next:()=>++rolls<=9?offers.next():0},true);
+  const source=game.players.map(p=>p.hand.map(t=>t.id));declare(game);
+  for(let seat=0;seat<4;seat++)act(game,seat,{type:'choose_card',cardId:seat===0?'machine-wrath':'double-wield'});
+  expect(game.removed.map(t=>t.type)).toEqual([{suit:'bamboo',rank:5},{suit:'bamboo',rank:5}]);
+  expect(game.wall.filter(t=>t.type.suit==='characters'&&t.type.rank===1)).toHaveLength(2);
+  expect(game.players.map(p=>p.hand.map(t=>t.id))).toEqual(source);
+  expect(game.publicView().events.filter(e=>e.card==='machine-wrath'&&e.effect==='wall_removed')).toEqual([expect.objectContaining({seat:0,tile:null,count:2})]);
+ });
+ it.each([true,false])('Machine Wrath skips ineligible opponents and fizzles only if none qualify (%s)', hasEligible => {
+  const offers=offerRng('machine-wrath');let rolls=0;
+  const game=round([full(),b('1234567891235'),hasEligible?c('1234567891235'):b('1234567891235'),b('1234567891235')],[...c('11'),...d('9'.repeat(30))],{next:()=>++rolls<=9?offers.next():0},true);
+  declare(game);
+  for(let seat=0;seat<4;seat++)act(game,seat,{type:'choose_card',cardId:seat===0?'machine-wrath':'double-wield'});
+  expect(game.removed).toHaveLength(hasEligible?2:0);
+  expect(game.wall.filter(t=>t.type.suit==='characters'&&t.type.rank===1)).toHaveLength(hasEligible?0:2);
+  expect(game.publicView().events.filter(e=>e.card==='machine-wrath'&&e.effect==='wall_removed')).toEqual([expect.objectContaining({seat:0,tile:null,count:hasEligible?2:0})]);
+ });
+ it('Hard Work copies only concealed sources on acquisition and reacts once to another player’s win', () => {
+  const game=round(undefined,d('9'.repeat(30)),offerRng('hard-work'),true);declare(game);
+  for(let seat=0;seat<4;seat++)act(game,seat,{type:'choose_card',cardId:seat===1?'hard-work':'double-wield'});
+  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([2]);
+  act(game,0,{type:'win'});
+  expect(game.events.filter(e=>e.effect==='wall_copied'&&e.card==='hard-work').map(e=>e.count)).toEqual([2,1]);
+  expect(game.wall).toHaveLength(32); // 30 + 3 copies - next ordinary draw.
+ });
+ it('Fan the Flames stacks across retired owners but never changes readiness or kong refunds', () => {
+  const hand=[...c('11112346789'),...b('126')],game=round([hand,wait(),wait(),wait()],b('9'));
+  game.players[1]!.cards.push('fan-the-flames');game.players[2]!.cards.push('fan-the-flames');declare(game);
+  act(game,0,{type:'kong',tileId:hand[0]!.id});discard(game,0,game.players[0]!.drawnId!);
+  expect(game.phase).toBe('settled');
+  expect(game.payments.some(p=>p.reason==='not_ready'&&p.to===1&&p.fan===0)).toBe(true);
  });
 });

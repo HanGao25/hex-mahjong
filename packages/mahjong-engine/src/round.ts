@@ -1,6 +1,6 @@
 import type { Tile, Rng, ScoreCap, Suit, Move, Claim, LegalMoves, RoundView, PrivateTable, Payment, TableEvent, Pattern, CardId, HexSelectionCount } from '@hex/shared';
 import { randomIndex } from '@hex/shared';
-import { selectionOffers, rollCritical, applyWallCard, copyInstance } from '@hex/hextech-engine';
+import { selectionOffers, rollCritical, applyWallCard, copyInstance, sampleTiles } from '@hex/hextech-engine';
 import { shuffle } from './random.js';
 import { SUITS, fromIndex, sameType, scoreHand, readyScore, counts, chooseDiscard, shanten, typeIndex, type Meld, type WinScore } from './hand.js';
 export interface Player { hand: Tile[]; melds: Meld[]; discards: Tile[]; missing: Suit | null; won: boolean; exited: boolean; score: number; drawnId: string | null; afterKong: boolean; cards: CardId[]; cheatArmed: boolean; handLocked: boolean; winCount: number }
@@ -44,6 +44,9 @@ export class MahjongRound {
   private selectionsCompleted = 0;
   private readonly hex: HexRuntime | null;
   private readonly knownIds: Set<string>;
+  private readonly noMoreArmed = new Set<number>();
+  private readonly precision = new Map<number, { suit: Suit; triggers: number }>();
+  private readonly torments: { owner: number; payers: number[]; remaining: number }[] = [];
   private firstWinners: number[] = [];
   private firstDiscarder: number | null = null;
   constructor(input: RoundInput) {
@@ -86,6 +89,8 @@ export class MahjongRound {
   private payKong(seat: number, payers: number[], amount: number) {
     const crit = this.critical(seat);
     for (const payer of payers) this.transfer(payer, seat, amount * (crit ? 2 : 1), 'kong', 0, [], crit);
+    this.armTorment(seat, payers);
+    this.opponentSuccess([seat]);
   }
   private winScore(seat: number, tile?: Tile, context: { selfDraw?: boolean; robKong?: boolean; afterKong?: boolean } = {}): WinScore | null {
     const p = this.players[seat]!;
@@ -94,7 +99,7 @@ export class MahjongRound {
       { ...context, selfDraw: !!context.selfDraw && !this.has(seat, 'double-wield') });
     return score && score.fan >= this.minimumFan() ? score : null;
   }
-  private minimumFan() { return this.players.some(p => p.cards.includes('fan-the-flames')) ? 2 : 0; }
+  private minimumFan() { return this.players.filter(p => p.cards.includes('fan-the-flames')).length; }
   private beginSelection(stage: Selection['stage'], resume: Resume) {
     if (stage === 'initial') this.initialDone = true; else if (stage === 'last32') this.last32Done = true; else this.last16Done = true;
     const seats = this.active();
@@ -124,14 +129,16 @@ export class MahjongRound {
         if (seat === this.dealer) p.drawnId = p.hand.at(-1)?.id ?? null;
         this.logHex('hand_refilled', seat, card, returned.length);
       }
+      if (card === 'no-more') this.noMoreArmed.add(seat);
+      if (card === 'machine-wrath') this.machineWrath(seat);
       if (card === 'cheat') p.cheatArmed = true;
       const sources = card === 'troublemaker'
         ? this.players.flatMap(player => player.hand.filter(tile => tile.type.suit === player.missing))
-        : [...p.hand, ...p.melds.flatMap(m => m.tiles)];
+        : card === 'hard-work' ? [...p.hand] : [...p.hand, ...p.melds.flatMap(m => m.tiles)];
       const result = applyWallCard(card, sources, this.wall, this.hex!.rng, () => this.freshId());
       this.removed.push(...result.removed);
       if (card === 'machine-malfunction') this.logHex('wall_removed', seat, card, result.removed.length);
-      if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker') this.logHex('wall_copied', seat, card, result.inserted);
+      if (card === 'echo' || card === 'radiant-echo' || card === 'troublemaker' || card === 'hard-work') this.logHex('wall_copied', seat, card, result.inserted);
     }
     this.selectionsCompleted++; this.selection = null;
     if (this.active().length < 2) this.finish('three_winners'); else this.resume(selection.resume);
@@ -179,12 +186,14 @@ export class MahjongRound {
     } else if (move.type === 'discard' && legal.discardIds.includes(move.tileId)) {
       const tile = p.hand.splice(p.hand.findIndex(t => t.id === move.tileId), 1)[0]!;
       p.drawnId = null; p.discards.push(tile); this.log('discard', seat, tile.type);
+      if (this.noMoreArmed.delete(seat)) this.removeMatching(seat, 'no-more', tile);
       this.openClaims(tile, seat, false, p.afterKong);
     } else if (move.type === 'win' && legal.canWin) {
       const score = this.winScore(seat, undefined, { selfDraw: true, afterKong: p.afterKong })!, crit = this.critical(seat);
       for (const payer of this.active()) if (payer !== seat) this.transfer(payer, seat, score.points * (crit ? 2 : 1), 'win', score.fan, score.patterns, crit);
       const scoredTile = this.has(seat, 'blood-river') ? p.hand.find(t => t.id === p.drawnId)!.type : null;
       this.recordWinners([seat], null); this.completeWin(seat, true); this.log('win', seat, scoredTile);
+      this.opponentSuccess([seat]);
       if (this.active().length < 2) this.finish('three_winners'); else this.advance(seat);
     } else if (move.type === 'kong' && legal.kongIds.includes(move.tileId)) {
       const tile = p.hand.find(t => t.id === move.tileId)!;
@@ -262,9 +271,12 @@ export class MahjongRound {
       this.players[q.from]!.discards.pop();
       p.melds.push({ kind: kind === 'kong' ? 'exposed_kong' : 'pong', tiles: [...this.take(seat, q.tile, kind === 'kong' ? 3 : 2), q.tile], from: q.from });
       p.drawnId = null; p.afterKong = false; this.bonusTurn = false; this.log(kind === 'kong' ? 'kong' : 'pong', seat, q.tile.type);
-      if (kind === 'kong') { this.payKong(seat, [q.from], 2); this.replacement(seat); }
+      if (kind === 'kong') { this.startTurn(seat); this.payKong(seat, [q.from], 2); this.replacement(seat); }
       else {
-        if (this.has(seat, 'point-pong-kong')) this.transfer(q.from, seat, 1, 'pong_card');
+        this.startTurn(seat);
+        if (this.has(seat, 'point-pong-kong')) { this.transfer(q.from, seat, 1, 'pong_card'); this.armTorment(seat, [q.from]); }
+        if (this.has(q.from, 'willing-victim')) this.transfer(seat, q.from, 1, 'willing_victim');
+        this.opponentSuccess([seat]);
         this.change('discard', seat);
       }
     } else if (this.wall.length && this.restartTurn(q.from)) {
@@ -275,7 +287,7 @@ export class MahjongRound {
   }
   private restartTurn(seat: number): boolean {
     if (!this.hex) return false;
-    for (const [card, chance] of [['grand-theft', 45], ['sneaky-theft', 25], ['petty-theft', 15]] as const) {
+    for (const [card, chance] of [['grand-theft', 40], ['sneaky-theft', 25], ['petty-theft', 15]] as const) {
       if (this.has(seat, card) && randomIndex(1000000, this.hex.rng) < chance * 10000) {
         this.logHex('turn_restarted', seat, card); return true;
       }
@@ -290,11 +302,57 @@ export class MahjongRound {
       if (s.choices.get(seat)) for (const payer of s.active) if (payer !== q.from && !s.winners.includes(payer)) this.transfer(payer, seat, Math.floor(paid / 2), 'collateral');
       this.completeWin(seat, false); this.log('win', seat, q.tile.type);
     }
+    this.opponentSuccess(s.winners);
     this.recordWinners(s.winners, q.from);
     if (q.robKong) this.players[q.from]!.hand.splice(this.players[q.from]!.hand.findIndex(t => t.id === q.tile.id), 1);
     else this.players[q.from]!.discards.pop();
     this.resolved.push(q.tile); this.pending = null; this.settlement = null;
     if (this.active().length < 2) this.finish('three_winners'); else this.advance(q.from);
+  }
+  private removeMatching(seat: number, card: CardId, tile: Tile) {
+    let count = 0;
+    for (let i = this.wall.length - 1; i >= 0; i--) if (sameType(this.wall[i]!.type, tile.type)) {
+      this.removed.push(this.wall.splice(i, 1)[0]!); count++;
+    }
+    this.logHex('wall_removed', seat, card, count);
+  }
+  private machineWrath(owner: number) {
+    const candidates = this.active().filter(seat => seat !== owner).map(seat => ({
+      tiles: this.players[seat]!.hand.filter(tile => this.wall.some(t => sameType(t.type, tile.type))),
+    })).filter(candidate => candidate.tiles.length > 0);
+    if (!candidates.length) { this.logHex('wall_removed', owner, 'machine-wrath', 0); return; }
+    const target = candidates[randomIndex(candidates.length, this.hex!.rng)]!;
+    this.removeMatching(owner, 'machine-wrath', target.tiles[randomIndex(target.tiles.length, this.hex!.rng)]!);
+  }
+  private opponentSuccess(actors: readonly number[]) {
+    if (!this.hex) return;
+    for (const actor of actors) for (const owner of this.active()) if (owner !== actor && this.has(owner, 'hard-work')) {
+      const source = sampleTiles(this.players[owner]!.hand, 1, this.hex.rng);
+      const copies = source.map(tile => copyInstance(tile, () => this.freshId()));
+      for (const tile of copies) this.wall.splice(randomIndex(this.wall.length + 1, this.hex.rng), 0, tile);
+      this.logHex('wall_copied', owner, 'hard-work', copies.length);
+    }
+  }
+  private armTorment(owner: number, payers: number[]) {
+    if (this.has(owner, 'liandrys-torment')) this.torments.push({ owner, payers: [...payers], remaining: 2 });
+  }
+  private startTurn(owner: number) {
+    if (!this.active().includes(owner)) return;
+    for (const effect of this.torments) if (effect.owner === owner && effect.remaining > 0) {
+      effect.remaining--;
+      for (const payer of effect.payers) if (this.active().includes(payer)) this.transfer(payer, owner, 1, 'torment');
+    }
+  }
+  private precisionDraw(owner: number, tile: Tile) {
+    if (!this.has(owner, 'precision-strike') || !this.hex) return;
+    const previous = this.precision.get(owner);
+    const state = { suit: tile.type.suit, triggers: previous?.triggers ?? 0 };
+    if (previous?.suit === tile.type.suit && state.triggers < 2) {
+      state.triggers++;
+      const payers = this.active().filter(seat => seat !== owner);
+      for (const payer of payers) this.transfer(payer, owner, 1, 'precision_strike');
+    }
+    this.precision.set(owner, state);
   }
   private replacement(seat: number) { this.draw({ kind: 'draw', seat, replacement: true, bonus: this.bonusTurn }); }
   private draw(task: DrawTask) {
@@ -303,6 +361,7 @@ export class MahjongRound {
     if (this.hex && this.hex.selections !== false && (this.hex.selectionCount ?? 2) >= 2 && !this.last16Done && this.wall.length <= 16) { this.beginSelection('last16', task); return; }
     if (this.players[task.seat]!.exited) { this.advance(task.seat); return; }
     const p = this.players[task.seat]!;
+    if (!task.replacement) this.startTurn(task.seat);
     let tile: Tile;
     if (p.cheatArmed && this.hex) {
       p.cheatArmed = false;
@@ -311,6 +370,7 @@ export class MahjongRound {
       else tile = this.wall.shift()!;
     } else tile = this.wall.shift()!;
     p.hand.push(tile); p.drawnId = tile.id; p.afterKong = task.replacement; this.bonusTurn = task.bonus;
+    this.precisionDraw(task.seat, tile);
     this.log('draw', task.seat); this.change('discard', task.seat);
   }
   private advance(from: number) {
@@ -328,7 +388,7 @@ export class MahjongRound {
       const ready = new Map<number, WinScore>();
       for (const i of active) {
         const p = this.players[i]!;
-        const score = !pig.has(i) && p.missing ? readyScore(p.hand, p.melds, this.missing(i), this.cap, this.minimumFan()) : null;
+        const score = !pig.has(i) && p.missing ? readyScore(p.hand, p.melds, this.missing(i), this.cap) : null;
         if (score) ready.set(i, score);
       }
       for (const from of pig) for (const to of active) if (!pig.has(to)) this.transfer(from, to, this.cap === 'uncapped' ? 16 : this.cap, 'flower_pig');

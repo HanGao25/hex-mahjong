@@ -9,13 +9,19 @@ export function tileArtwork(tile: TileType): string {
     // The practice game's numeric order is 万, 筒, 条 (different from engine indices).
     const id = ({ characters: 0, dots: 1, bamboo: 2 }[tile.suit] * 9) + tile.rank - 1;
     const rank = id % 9 + 1, suit = Math.floor(id / 9);
-    const red = '#b42f32', green = '#176448', blue = '#214977';
+    const red = '#b42f32', green = '#176448', blue = '#214977', black = '#000000';
     let drawing = '';
     if (suit === 0) {
         drawing = `<text x="30" y="31" text-anchor="middle" fill="${blue}" font-size="29" font-family="Kaiti SC, STKaiti, KaiTi, serif">${'一二三四五六七八九'[rank-1]}</text><text x="30" y="64" text-anchor="middle" fill="${red}" font-size="32" font-family="Kaiti SC, STKaiti, KaiTi, serif">萬</text>`;
     } else if (suit === 2 && rank === 1) {
         // One bamboo traditionally uses a bird instead of a single stalk.
         drawing = `<image href="${birdUrl}" x="2" y="2" width="56" height="72" preserveAspectRatio="xMidYMid meet"/>`;
+    } else if (suit === 2 && rank === 8) {
+        // Four slanted stalks form a W above four stalks forming an M.
+        drawing = [21,55].map((y, row) => [13.5,24.5,35.5,46.5].map((x, column) => {
+            const angle = (column % 2 === row ? -1 : 1) * 29;
+            return `<g transform="translate(${x} ${y}) rotate(${angle})" stroke="${green}" stroke-linecap="round"><path d="M-2 -11 V11 M2 -11 V11" stroke-width="2.5"/><path d="M-4 -11 H4 M-4 0 H4 M-4 11 H4" stroke-width="2"/></g>`;
+        }).join('')).join('');
     } else {
         const layouts: Record<number, [number, number][]> = {
             1: [[30,38]], 2: [[30,21],[30,55]], 3: [[16,17],[30,38],[44,59]],
@@ -30,7 +36,9 @@ export function tileArtwork(tile: TileType): string {
             ? [[14,12],[30,23],[46,34],[16,48],[44,48],[16,66],[44,66]]
             : layouts[rank]!;
         drawing = positions.map(([x,y], i) => {
-            const color = suit === 1 ? (rank === 7 ? (i < 3 ? green : red) : rank === 1 ? green : rank === 5 && i === 2 ? red : rank === 9 ? [green,red,blue][Math.floor(i/3)] : i % 2 ? blue : green) : (rank === 7 && i === 0 ? red : green);
+            const color = rank === 9 ? (i >= 3 && i < 6 ? red : green)
+                : suit === 1 ? (rank === 8 ? black : rank === 7 ? (i < 3 ? green : red) : rank === 1 ? green : rank === 5 && i === 2 ? red : i % 2 ? blue : green)
+                : (rank === 7 && i === 0 ? red : green);
             if (suit === 1) {
                 const r = rank === 1 ? 21 : rank === 9 ? 6 : 8;
                 return `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${color}" stroke-width="2.5"/><circle cx="${x}" cy="${y}" r="${r*0.55}" fill="none" stroke="${color}" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="${rank === 1 ? 5 : 2}" fill="${rank === 1 ? red : color}"/>`;

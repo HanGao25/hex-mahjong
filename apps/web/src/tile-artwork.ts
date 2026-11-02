@@ -17,9 +17,9 @@ export function tileArtwork(tile: TileType): string {
         // One bamboo traditionally uses a bird instead of a single stalk.
         drawing = `<image href="${birdUrl}" x="2" y="2" width="56" height="72" preserveAspectRatio="xMidYMid meet"/>`;
     } else if (suit === 2 && rank === 8) {
-        // Four slanted stalks form a W above four stalks forming an M.
+        // Traditional W/M layout: upright outer stalks and diagonal inner stalks.
         drawing = [21,55].map((y, row) => [13.5,24.5,35.5,46.5].map((x, column) => {
-            const angle = (column % 2 === row ? -1 : 1) * 29;
+            const angle = column === 0 || column === 3 ? 0 : (column % 2 === row ? -1 : 1) * 29;
             return `<g transform="translate(${x} ${y}) rotate(${angle})" stroke="${green}" stroke-linecap="round"><path d="M-2 -11 V11 M2 -11 V11" stroke-width="2.5"/><path d="M-4 -11 H4 M-4 0 H4 M-4 11 H4" stroke-width="2"/></g>`;
         }).join('')).join('');
     } else {
